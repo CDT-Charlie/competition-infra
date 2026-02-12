@@ -1,0 +1,37 @@
+# Domain and listening configuration
+myhostname = {{ pf_hostname }}
+mydomain = {{ pf_domain }}
+myorigin = $mydomain
+inet_interfaces = all
+inet_protocols = ipv4
+
+mydestination = localhost
+
+# Allowed subnets to mail
+mynetworks = 127.0.0.0/8, {{ pf_allowed_networks }}
+
+# Reject if mail is not addressed to pf_domain or if not from allowed networks
+# Allow only authenticated clients, and pf_allowed_networks
+smtpd_relay_restrictions = permit_mynetworks, reject_unauth_destination, permit_sasl_authenticated
+
+# Save to Dovecot
+virtual_transport = lmtp:unix:private/dovecot-lmtp
+
+# TLS configuration for outbound mail (client-side)
+smtp_tls_security_level = encrypt
+
+# TLS configuration for inbound mail (server-side)
+# Allow encryption but only force when authenticating
+smtpd_tls_security_level = may
+smtpd_tls_auth_only = yes
+smtpd_tls_cert_file = /etc/ssl-certs/self-signed.pem
+smtpd_tls_key_file = /etc/ssl-certs/privkey.pem
+
+# SASL configuration - Use Dovecot
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_type = dovecot
+smtpd_sasl_path = private/auth # Bind to listener created by Dovecot
+queue_directory = /var/spool/postfix
+
+# Log location
+maillog_file = /var/log/postfix.log

@@ -1,0 +1,74 @@
+---
+# Name: Bryant Chang
+# Email: bc9028@rit.edu
+# Date: February 4, 2026
+# Assignment: CDT HW 2
+
+# This playbook deploys and configures rsyslog on the designated central logging server
+# To configure the main server location, go to inventory.ini
+- name: Central rsyslog server
+  hosts: syslog_central
+  become: true
+  tasks:
+    - name: Install rsyslog
+      package:
+        name: rsyslog
+        state: present
+
+    - name: Enable rsyslog service
+      service:
+        name: rsyslog
+        enabled: yes
+        state: started
+
+    - name: Create base directory for remote logs
+      file:
+        path: /var/log/remote # all the forwarded logs will be aggregated here
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Configure rsyslog server listeners # This rsyslog configuration ONLY supports TCP
+      copy:
+        dest: /etc/rsyslog.d/01-server.conf
+        mode: '0644'
+        content: |
+          module(load="imtcp")
+          input(type="imtcp" port="514")
+          template(name="RemoteLogs" type="string" string="/var/log/remote/%HOSTNAME%/%PROGRAMNAME%.log")
+          *.* ?RemoteLogs
+          & stop
+
+    - name: Filter out specific logs # This configuration only filters out ansible logs
+      copy:
+        dest: /etc/rsyslog.d/00-filter-noise.conf
+        content: |
+          if $programname contains "ansible" then stop
+    
+    - name: Automate log rotation # Logs are rotated and compressed every hour if main log file size exceeds 100KB
+      copy:
+        dest: /etc/logrotate.d/rsyslog-remote
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          /var/log/remote/*/*.log {
+            size 100k
+            hourly
+            missingok
+            rotate 2
+            compress
+            notifempty
+            create 0640 {{ ansible_env.USER }}
+            sharedscripts
+            postrotate
+              /usr/lib/rsyslog/rsyslog-rotate
+            endscript
+          }
+
+    - name: Restart rsyslog
+      service:
+        name: rsyslog
+        state: restarted
+        

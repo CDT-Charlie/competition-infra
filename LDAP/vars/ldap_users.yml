@@ -1,0 +1,17 @@
+# LDAP user/group creation variables
+
+ldap_suffix: "dc=example,dc=com"
+
+ldap_rootdn: "cn=admin,dc=example,dc=com"
+ldap_rootpw: "Password"
+
+admin_group: "admins"
+admin_gid: 5000
+
+username: "jdoe"
+user_cn: "John Doe"
+user_sn: "Doe"
+user_uid: 10000
+user_password: "password"
+
+file_path: "/srv/admin-file.txt"

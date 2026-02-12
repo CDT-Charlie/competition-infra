@@ -1,0 +1,3 @@
+## nginx container playbook 
+### Developer: Caroline Richards
+This script deploys nginx, MySQL, and php-fpm Docker container on a client and configures them on a network to communicate. Required files for nginx config, index.php, and database initialization are included in the directory but should but customized or replaced by themed, full web page implementations prior to competition deployment. Required files should be located in the same directory where the playbook is run. 

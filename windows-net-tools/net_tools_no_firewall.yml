@@ -1,0 +1,49 @@
+# Oliver Gomes
+# odg1896@rit.edu
+# 2/4/2026
+---
+- name: Grey Team Windows Environment Setup
+  hosts: windows
+  # Speed up execution if hardware details aren't needed
+  gather_facts: false  
+  tasks:
+
+    # Allowing all network traffic through without a hassle
+    - name: Disable Windows Firewall
+      community.windows.win_firewall:
+        state: disabled
+        profiles:
+          - Domain
+          - Private
+          - Public
+      
+    # OpenSSH allows for Linux-like remote management and secure file transfers (SFTP)
+    - name: Install OpenSSH Server
+      microsoft.ad.win_optional_feature:
+        name: OpenSSH.Server~~~~0.0.1.0
+        state: present
+    
+    # Ensures the SSH service starts immediately and survives system reboots
+    - name: Start and Automate SSH Service
+      win_service:
+        name: sshd
+        start_mode: auto
+        state: started
+
+    # Chocolatey is the package manager used to automate the next two software installs
+    - name: Ensure Chocolatey is installed
+      win_chocolatey:
+        name: chocolatey
+        state: present
+
+    # Sysinternals is essential for deep-system monitoring and troubleshooting
+    - name: Install Sysinternals Suite
+      win_chocolatey:
+        name: sysinternals
+        state: latest
+        
+    # Wireshark is installed for packet capture and network traffic analysis
+    - name: Install Wireshark
+      win_chocolatey:
+        name: wireshark
+        state: latest

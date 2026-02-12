@@ -1,0 +1,93 @@
+# Name: Winter Sager
+# Email: wrs9226@g.rit.edu
+# Date: 02.04.26
+
+#  The script has used LDAP features to implement 3 features; Creating Admin Groups, Adding Users to Groups and Placing Files
+
+
+---
+
+- name: LDAP group, user, and file setup
+  hosts: ldap
+  become: yes
+
+  vars_files:
+    - vars/ldap_users.yml
+
+  tasks:
+
+    # Create LDAP group
+    - name: Create admin group LDIF
+      copy:
+        dest: /tmp/create_group.ldif
+        content: |
+          dn: cn={{ admin_group }},ou=Groups,{{ ldap_suffix }}
+          objectClass: top
+          objectClass: posixGroup
+          cn: {{ admin_group }}
+          gidNumber: {{ admin_gid }}
+
+    - name: Apply admin group LDIF
+      command: >
+        ldapadd -x -D "{{ ldap_rootdn }}" -w "{{ ldap_rootpw }}" -H ldapi:/// -f /tmp/create_group.ldif
+      ignore_errors: true
+      failed_when: false   # Prevents "Already exists" from failing the playbook
+
+    # Create LDAP user
+    - name: Create user LDIF
+      copy:
+        dest: /tmp/create_user.ldif
+        content: |
+          dn: uid={{ username }},ou=People,{{ ldap_suffix }}
+          objectClass: inetOrgPerson
+          objectClass: posixAccount
+          objectClass: shadowAccount
+          cn: {{ user_cn }}
+          sn: {{ user_sn }}
+          uid: {{ username }}
+          uidNumber: {{ user_uid }}
+          gidNumber: {{ admin_gid }}
+          homeDirectory: /home/{{ username }}
+          loginShell: /bin/bash
+          userPassword: {{ user_password }}
+
+    - name: Apply user LDIF
+      command: >
+        ldapadd -x -D "{{ ldap_rootdn }}" -w "{{ ldap_rootpw }}" -H ldapi:/// -f /tmp/create_user.ldif
+      ignore_errors: true
+      failed_when: false
+
+    # Add user to LDAP group
+    - name: Create group membership LDIF
+      copy:
+        dest: /tmp/add_user_to_group.ldif
+        content: |
+          dn: cn={{ admin_group }},ou=Groups,{{ ldap_suffix }}
+          changetype: modify
+          add: memberUid
+          memberUid: {{ username }}
+
+    - name: Apply group membership LDIF
+      command: >
+        ldapmodify -x -D "{{ ldap_rootdn }}" -w "{{ ldap_rootpw }}" -H ldapi:/// -f /tmp/add_user_to_group.ldif
+      ignore_errors: true
+      failed_when: false   # Prevents "Value exists" from failing the playbook
+
+    # Ensure local UNIX group exists
+    # Required so Linux can chgrp the file
+
+    - name: Ensure local UNIX group exists
+      group:
+        name: "{{ admin_group }}"
+        gid: "{{ admin_gid }}"
+        state: present
+
+    # Create file and assign group
+
+    - name: Create file for admin group
+      file:
+        path: "{{ file_path }}"
+        state: touch
+        owner: root
+        group: "{{ admin_group }}"
+        mode: "0660"

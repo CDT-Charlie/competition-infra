@@ -1,0 +1,67 @@
+---
+-  name: Install and configure granfana
+   hosts: clients
+   become: true
+
+#variables used to conifgure Grafana settings 
+   vars:
+     grafana_http_port: 3000
+     grafana_domain: "CharlieGreyTeam"
+     grafana_root_url: "http://{{grafana_domain}}: {{grafana_http_port}}/"
+     grafana_admin_user: admin
+     grafana_admin_password: "Password123!" # change this!!
+
+#Mains task to insrall and configure grafana
+   tasks:
+    - name: Install prerequisite packages
+      apt:
+        name:
+          - apt-transport-https
+          - software-properties-common
+          - wget
+          - gnupg
+        state: present
+        update_cache: true
+#add grafana GPG for package verfication
+    - name: Add Grafana GPG key
+      apt_key:
+        url: https://apt.grafana.com/gpg.key
+        state: present
+#add grafana Repo
+    - name: Add Grafana APT repository
+      apt_repository:
+        repo: "deb https://apt.grafana.com stable main"
+        state: present
+        filename: grafana
+#Install grafana Repository
+    - name: Install Grafana
+      apt:
+        name: grafana
+        state: present
+        update_cache: true
+
+#configure basic Grafan setting suck as port and domain
+    - name: Configure grafana.ini (minimal settings)
+      lineinfile:
+        path: /etc/grafana/grafana.ini
+        regexp: "^;?{{ item.key }} ="
+        line: "{{ item.key }} = {{ item.value }}"
+        backrefs: false
+      loop:
+        - { key: "http_port", value: "{{ grafana_http_port }}" }
+        - { key: "domain", value: "{{ grafana_domain }}" }
+        - { key: "root_url", value: "{{ grafana_root_url }}" }
+      notify: Restart grafana
+
+#ENsure Grafan service is enabled and running 
+    - name: Ensure Grafana is enabled and running
+      systemd:
+        name: grafana-server
+        enabled: true
+        state: started
+
+   handlers:
+    - name: Restart grafana
+      systemd:
+        name: grafana-server
+        state: restarted

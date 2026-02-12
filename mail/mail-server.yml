@@ -1,0 +1,118 @@
+---
+# Name: Swapnil Acharjee
+# Email: ska1751@rit.edu
+# Date: February 3, 2026
+# Assignment: CDT HW 2
+#
+# Playbook deploys Dovecot and Postfix on any systems labeled "mail"
+# This is expected to be installed on a Debian-based machine 
+#
+# There are two files needed:
+# - dovecot.conf
+# - postfix.conf.j2
+#
+# There are nine variables to be set:
+# - Domain Info for ssl cert generation
+# - Hostname for Postfix
+# - Domain that Postfix listens on
+# - Networks allowed to communicate to Postfix
+#
+- name: Install Mail System
+  hosts: mail
+  vars:
+    ## Domain Info (SSL)
+    C:  "US" # Country
+    ST: "NewYork" # State/Province
+    L:  "Rochester" # Locale/City
+    O:  "CSEC473" # Organization
+    OU: "Charlie" # Organizational Unit
+    CN: "example.com" # Common Name/Domain Name
+
+    ## Domain Info (Postfix)
+    pf_hostname: "smtp"
+    pf_domain: "example.com"
+    pf_allowed_networks: "10.0.100.0/24, 10.0.1.0/24"
+  become: yes
+  tasks:
+
+  # Adding key for external repo.
+  - name: Add Dovecot 2.4 Key
+    apt_key:
+      url: https://repo.dovecot.org/DOVECOT-REPO-GPG-2.4
+      state: present
+    
+  # Current config for Dovecot is only compatible version 2.4
+  # Adding Community hosted repository for 2.4
+  - name: Add Dovecot 2.4 Repository
+    apt_repository:
+      repo: deb https://repo.dovecot.org/ce-2.4.0/debian/bookworm bookworm main
+      state: present
+    
+  - name: Install Dovecot and Postfix
+    apt:
+      pkg:
+      - dovecot-lmtpd
+      - dovecot-imapd
+      - openssl
+      - postfix
+      update_cache: yes
+      state: latest
+    environment:
+      # Postfix uses an interactive config
+      # during install. This disables it.
+      DEBIAN_FRONTEND: noninteractive
+
+  # vmail Group and User needed for dovecot configuration.
+  - name: Create vmail Group 
+    group:
+      name: "vmail"
+      state: present
+
+  - name: Create vmail User
+    user:
+      name: "vmail"
+      group: "vmail"
+      create_home: false
+
+  - name: Ensure Cert Folder Exists
+    file:
+      path: /etc/ssl-certs
+      state: directory
+      owner: vmail
+      group: vmail
+      mode: 0640
+
+  - name: Create SSL Certs # Self-Signed SSL Cert for now.
+    shell: |
+      openssl req -newkey rsa:2048 -nodes \ 
+        -keyout /etc/ssl-certs/privkey.pem \
+        -x509 -days 365 \
+        -out /etc/ssl-certs/self-signed.pem \
+        -subj "/C={{C}}/ST={{ST}}/L={{L}}/O={{O}}/OU={{OU}}/CN={{CN}}"
+    
+  - name: Place premade Dovecot config file.
+    copy:
+      src: dovecot.conf
+      dest: /etc/dovecot/dovecot.conf
+      owner: vmail
+      group: vmail
+      mode: 0640 
+      backup: yes
+
+  - name: Place template Postfix config file.
+    template:
+      src: "postfix.conf.j2"
+      dest: "/etc/postfix/main.cf"
+      owner: postfix
+      group: postfix
+      mode: 0440
+      backup: yes
+    
+  - name: Enable and Start Services
+    service:
+      name: "{{ item }}"
+      state: started
+      enabled: true
+    loop:
+      - postfix
+      - dovecot

@@ -1,0 +1,15 @@
+
+# LDAP directory suffix
+ldap_suffix: "dc=example,dc=com"
+
+# Admin for cn=config
+ldap_admin_dn: "cn=admin,dc=example,dc=com"
+ldap_admin_password: "Password"
+
+# Admin for the main MDB database
+ldap_rootdn: "cn=admin,dc=example,dc=com"
+ldap_rootpw: "Password"
+
+# Path where base.ldif will be copied
+ldap_base_ldif: "/tmp/base.ldif"
+

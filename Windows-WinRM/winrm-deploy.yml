@@ -1,0 +1,68 @@
+---
+# winrm-deploy.yml
+# Author: Christian Tomassetti
+# Email: cjt3870@rit.edu
+# Date: 2026-02-04
+# Service: WinRM
+
+  # Define variables
+- name: WinRM service and 3 features
+  hosts: windows
+  gather_facts: false
+
+  vars:
+    new_user: "ct_ansible"
+    new_pass: "Password123!"
+    banner_dir: "C:\\ProgramData\\csec473"
+    banner_file: "C:\\ProgramData\\csec473\\banner.txt"
+    banner_text: |
+      CSEC-473 HW2 - Made by Ansible :)
+      Host: {{ inventory_hostname }}
+
+    service: "wuauserv"   # Windows Update service
+
+  tasks:
+
+    # WinRM service enabled and running
+    - name: Ensure WinRM service is enabled and running
+      win_service:
+        name: WinRM
+        start_mode: auto
+        state: started
+
+    # Feature 1: add new user and add to local admin group
+    - name: Create local user
+      win_user:
+        name: "{{ new_user }}"
+        password: "{{ new_pass }}"
+        state: present
+
+    - name: Check if user is already in local Administrators
+      win_shell: |
+        net localgroup Administrators | findstr /I "{{ new_user }}"
+      register: admin_member_check
+      changed_when: false
+      failed_when: false
+
+    - name: Add user to local Administrators group
+      win_shell: |
+        net localgroup Administrators "{{ new_user }}" /add
+      when: admin_member_check.rc != 0
+
+    # Feature 2: add banner directory and place banner
+    - name: Ensure banner directory exists
+      win_file:
+        path: "{{ banner_dir }}"
+        state: directory
+
+    - name: Deploy banner file
+      win_copy:
+        dest: "{{ banner_file }}"
+        content: "{{ banner_text }}"
+
+    # Feature 3: check to see if the service specified in vars is running
+    - name: Ensure service is enabled and started
+      win_service:
+        name: "{{ service }}"
+        start_mode: auto
+        state: started

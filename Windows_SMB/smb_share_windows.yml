@@ -1,0 +1,71 @@
+---
+# Name: Adam Belovsky
+# Email: adb5916@rit.edu
+# Date: 2026-02-03
+#
+#  Deploy a basic Windows SMB file share (Windows client or server) for CDT competition use.
+#
+# Customization:
+#   - share_name, share_path
+#   - allowed_group
+#   - smb_user / smb_password
+
+- name: Configure Windows SMB file share (client or server)
+  hosts: windows
+  gather_facts: no
+
+  vars:
+    share_name: "CDTShare"
+    share_path: "C:\\CDTShare"
+    allowed_group: "CDTShareUsers"
+    smb_user: "cdtshareuser"
+    smb_password: "P@ssw0rd!ChangeMe123"
+
+  tasks:
+    # Feature 1: Users/Groups
+    - name: Create local group for share access
+      ansible.windows.win_group:
+        name: "{{ allowed_group }}"
+        state: present
+
+    - name: Create local user for share access
+      ansible.windows.win_user:
+        name: "{{ smb_user }}"
+        password: "{{ smb_password }}"
+        state: present
+        groups:
+          - "{{ allowed_group }}"
+        password_never_expires: yes
+
+    # Feature 2: Files + NTFS permissions
+    - name: Create folder for the share
+      ansible.windows.win_file:
+        path: "{{ share_path }}"
+        state: directory
+
+    - name: Grant NTFS Modify rights to allowed group on the folder
+      ansible.windows.win_acl:
+        path: "{{ share_path }}"
+        user: "{{ allowed_group }}"
+        rights: Modify
+        type: allow
+        state: present
+        inheritance: ContainerInherit, ObjectInherit
+        propagation: None
+
+    # Feature 3: Allow SMB through firewall rules (common on clients; usually already OK on servers)
+    - name: Enable File and Printer Sharing firewall rules
+      ansible.windows.win_powershell:
+        script: |
+          Set-NetFirewallRule -DisplayGroup "File and Printer Sharing" -Enabled True
+
+    # Feature 4: Create share + share permissions
+    - name: Create SMB share (share-level permissions)
+      ansible.windows.win_share:
+        name: "{{ share_name }}"
+        path: "{{ share_path }}"
+        description: "CDT competition share deployed by Ansible"
+        list: no
+        full: "{{ allowed_group }}"
+        state: present
+        

