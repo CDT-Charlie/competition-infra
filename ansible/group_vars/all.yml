@@ -1,0 +1,8 @@
+# Common variables for all hosts
+ansible_user: greyteam
+ansible_connection: ssh
+ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+default_password: "Password123!"
+admin_def_passwd: "ChangeThisImmediately!"
+

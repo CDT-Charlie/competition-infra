@@ -1,0 +1,14 @@
+---
+# Base Windows role - Common Windows system setup
+# This role provides basic Windows configuration that other roles can depend on
+
+- name: Ensure WinRM service is enabled and running
+  ansible.windows.win_service:
+    name: WinRM
+    start_mode: auto
+    state: started
+
+- name: Enable File and Printer Sharing firewall rules
+  ansible.windows.win_powershell:
+    script: |
+      Set-NetFirewallRule -DisplayGroup "File and Printer Sharing" -Enabled True

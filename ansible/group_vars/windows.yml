@@ -1,0 +1,43 @@
+---
+# Windows-specific variables
+
+# Windows Domain Controller + DNS
+windows_dc:
+  domain_name: "hockey.cdtcharlie.com"
+  netbios_name: "HOCKEY1"
+  safe_mode_password: "Password123!"
+  dc_hostname: "DC1"
+  ou_name: "GreyTeam"
+  group_name: "BlueTeamAdmins"
+  domain_user:
+    sam: "alice"
+    given: "Alice"
+    surname: "Operator"
+    password: "ChangeMe_User123!"
+
+# Windows SMB + FTP
+windows_smb_ftp:
+  smb:
+    share_name: "CDTShare"
+    share_path: "C:\\CDTShare"
+    allowed_group: "CDTShareUsers"
+    user: "cdtshareuser"
+    password: "P@ssw0rd!ChangeMe123"
+  ftp:
+    site_name: "Win_Legacy_Svc"
+    root_path: "C:\\Windows\\Logs\\FTP_Archive"
+    payload_path: "C:\\Windows\\System32\\Tasks_Config.ps1"
+    task_name: "Microsoft-Windows-Disk-Maintenance"
+
+# Windows WinRM
+windows_winrm:
+  ansible_user:
+    username: "ct_ansible"
+    password: "Password123!"
+  banner:
+    directory: "C:\\ProgramData\\csec473"
+    filename: "banner.txt"
+    text: |
+      CSEC-473 HW2 - Made by Ansible :)
+      Host: {{ inventory_hostname }}
+  monitored_service: "wuauserv"

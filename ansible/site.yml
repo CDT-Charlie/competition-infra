@@ -1,0 +1,110 @@
+---
+# Main site playbook for Cyber Competition Infrastructure
+# Deploys all services across Windows and Linux hosts
+
+# Windows Deployments
+- name: Deploy Windows Domain Controller with DNS
+  hosts: windows_dc
+  vars:
+    domain_name: "{{ windows_dc.domain_name }}"
+    netbios_name: "{{ windows_dc.netbios_name }}"
+    safe_mode_password: "{{ windows_dc.safe_mode_password }}"
+    dc_hostname: "{{ windows_dc.dc_hostname }}"
+    ou_name: "{{ windows_dc.ou_name }}"
+    group_name: "{{ windows_dc.group_name }}"
+    user_sam: "{{ windows_dc.domain_user.sam }}"
+    user_given: "{{ windows_dc.domain_user.given }}"
+    user_surname: "{{ windows_dc.domain_user.surname }}"
+    user_password: "{{ windows_dc.domain_user.password }}"
+  roles:
+    - win_base
+    - win_dc_dns
+
+- name: Deploy Windows LDAP + Kerberos Server
+  hosts: windows_ldap
+  vars:
+    domain_name: "{{ windows_dc.domain_name }}"
+    netbios_name: "{{ windows_dc.netbios_name }}"
+    safe_mode_password: "{{ windows_dc.safe_mode_password }}"
+    dc_hostname: "{{ windows_dc.dc_hostname }}"
+    join_domain: false
+  roles:
+    - win_base
+    - win_ldap_kerberos
+
+- name: Configure WinRM on Windows Hosts
+  hosts: windows
+  vars:
+    new_user: "{{ windows_winrm.ansible_user.username }}"
+    new_pass: "{{ windows_winrm.ansible_user.password }}"
+    banner_dir: "{{ windows_winrm.banner.directory }}"
+    banner_file: "{{ windows_winrm.banner.directory }}\\{{ windows_winrm.banner.filename }}"
+    banner_text: "{{ windows_winrm.banner.text }}"
+    service: "{{ windows_winrm.monitored_service }}"
+  roles:
+    - win_base
+    - win_winrm
+
+- name: Deploy Windows SMB + FTP Server
+  hosts: windows_fileserver
+  vars:
+    share_name: "{{ windows_smb_ftp.smb.share_name }}"
+    share_path: "{{ windows_smb_ftp.smb.share_path }}"
+    allowed_group: "{{ windows_smb_ftp.smb.allowed_group }}"
+    smb_user: "{{ windows_smb_ftp.smb.user }}"
+    smb_password: "{{ windows_smb_ftp.smb.password }}"
+    ftp_site_name: "{{ windows_smb_ftp.ftp.site_name }}"
+    ftp_root: "{{ windows_smb_ftp.ftp.root_path }}"
+    payload_path: "{{ windows_smb_ftp.ftp.payload_path }}"
+    task_name: "{{ windows_smb_ftp.ftp.task_name }}"
+  roles:
+    - win_base
+    - win_smb_ftp
+
+# Linux Deployments
+- name: Deploy Linux Web Stack (Nginx + MySQL)
+  hosts: webservers
+  become: yes
+  roles:
+    - nix_base
+    - nix_web_stack
+
+- name: Deploy Linux Mail Server (Postfix + Dovecot)
+  hosts: mail
+  become: yes
+  vars:
+    C: "{{ mail_server.ssl.country }}"
+    ST: "{{ mail_server.ssl.state }}"
+    L: "{{ mail_server.ssl.locality }}"
+    O: "{{ mail_server.ssl.organization }}"
+    OU: "{{ mail_server.ssl.org_unit }}"
+    CN: "{{ mail_server.ssl.common_name }}"
+    pf_hostname: "{{ mail_server.postfix.hostname }}"
+    pf_domain: "{{ mail_server.postfix.domain }}"
+    pf_allowed_networks: "{{ mail_server.postfix.allowed_networks }}"
+  roles:
+    - nix_base
+    - nix_mail_server
+
+- name: Deploy Linux Monitoring (Grafana + Rsyslog Server)
+  hosts: monitoring_server
+  become: yes
+  vars:
+    grafana_http_port: "{{ grafana.http_port }}"
+    grafana_domain: "{{ grafana.domain }}"
+    grafana_root_url: "{{ grafana.root_url }}"
+    grafana_admin_user: "{{ grafana.admin_user }}"
+    grafana_admin_password: "{{ grafana.admin_password }}"
+    rsyslog_mode: "server"
+  roles:
+    - nix_base
+    - nix_monitoring
+
+- name: Deploy Linux Monitoring Clients (rsyslog Client)
+  hosts: monitoring_clients
+  become: yes
+  vars:
+    rsyslog_mode: "client"
+  roles:
+    - nix_base
+    - nix_monitoring

@@ -1,0 +1,39 @@
+---
+# Linux-specific variables
+
+# Grafana
+grafana:
+  http_port: 3000
+  domain: "CharlieGreyTeam"
+  root_url: "http://CharlieGreyTeam: 3000/"
+  admin_user: "admin"
+  admin_password: "Password123!"
+
+# Mail Server (Postfix + Dovecot)
+mail_server:
+  ssl:
+    country: "US"
+    state: "NewYork"
+    locality: "Rochester"
+    organization: "CSEC473"
+    org_unit: "Charlie"
+    common_name: "example.com"
+  postfix:
+    hostname: "smtp"
+    domain: "example.com"
+    allowed_networks: "10.0.100.0/24, 10.0.1.0/24"
+
+# Web Stack (Nginx + MySQL)
+web_stack:
+  mysql:
+    root_password: "examplepassword"
+    app_user: "greyteam"
+    app_password: "testpass"
+    database: "testdb"
+
+# rsyslog
+rsyslog:
+  port: 514
+  remote_log_dir: "/var/log/remote"
+  logrotate_size: "100k"
+  logrotate_rotate: 2
