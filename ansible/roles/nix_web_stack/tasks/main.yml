@@ -1,0 +1,92 @@
+---
+# Nginx + MySQL Web Stack Role
+# Deploys web stack using Docker containers
+
+- name: Install Docker
+  apt:
+    name: docker.io
+    state: present
+    update_cache: yes
+
+- name: Install Docker Python Module
+  apt:
+    name: python3-docker
+    state: present
+
+- name: Start Docker Service
+  service:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Create Docker Network
+  docker_network:
+    name: "{{ docker.network_name }}"
+    state: present
+
+- name: Create Web Directory
+  file:
+    path: "{{ web.root }}"
+    state: directory
+
+- name: Copy web files
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+  loop:
+    - { src: 'index.php', dest: '{{ web.root }}/index.php' }
+    - { src: 'nginx.conf', dest: '{{ web.root }}/nginx.conf' }
+    - { src: 'Dockerfile.php', dest: '{{ web.root }}/Dockerfile' }
+
+- name: Generate database initialization script from template
+  template:
+    src: "{{ database.init_script }}"
+    dest: "{{ web.root }}/init.sql"
+  when: database.create_tables
+
+- name: Run MySQL Container
+  docker_container:
+    name: "{{ docker.mysql.container_name }}"
+    image: "{{ docker.mysql.image }}"
+    state: started
+    restart_policy: always
+    env:
+      MYSQL_ROOT_PASSWORD: "{{ docker.mysql.root_password }}"
+      MYSQL_DATABASE: "{{ docker.mysql.database }}"
+      MYSQL_USER: "{{ docker.mysql.app_user }}"
+      MYSQL_PASSWORD: "{{ docker.mysql.app_password }}"
+    volumes:
+      - "{{ web.root }}/init.sql:/docker-entrypoint-initdb.d/init.sql"
+    networks:
+      - name: "{{ docker.network_name }}"
+
+- name: Create PHP Image with MySQL support
+  docker_image:
+    name: "{{ docker.php.image }}"
+    source: build
+    build:
+      path: "{{ web.root }}"
+
+- name: Run PHP Container
+  docker_container:
+    name: "{{ docker.php.container_name }}"
+    image: "{{ docker.php.image }}"
+    state: started
+    restart_policy: always
+    volumes:
+      - "{{ web.root }}:/var/www/html"
+    networks:
+      - name: "{{ docker.network_name }}"
+
+- name: Run Nginx Container
+  docker_container:
+    name: "{{ docker.nginx.container_name }}"
+    image: "{{ docker.nginx.image }}"
+    state: started
+    restart_policy: always
+    ports: "{{ docker.nginx.ports }}"
+    volumes:
+      - "{{ web.root }}:/var/www/html"
+      - "{{ web.root }}/nginx.conf:/etc/nginx/conf.d/default.conf"
+    networks:
+      - name: "{{ docker.network_name }}"

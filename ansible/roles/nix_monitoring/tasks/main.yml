@@ -1,0 +1,143 @@
+---
+# Grafana + rsyslog Monitoring Role
+# Deploys Grafana monitoring and rsyslog logging
+
+- name: Install Grafana prerequisites
+  apt:
+    name:
+      - apt-transport-https
+      - software-properties-common
+      - wget
+      - gnupg
+    state: present
+    update_cache: true
+  when: grafana.enabled
+
+- name: Add Grafana GPG key
+  apt_key:
+    url: "{{ grafana.repo_url }}"
+    state: present
+  when: grafana.enabled
+
+- name: Add Grafana APT repository
+  apt_repository:
+    repo: "{{ grafana.repo_deb }}"
+    state: present
+    filename: "{{ grafana.repo_filename }}"
+  when: grafana.enabled
+
+- name: Install Grafana
+  apt:
+    name: grafana
+    state: present
+    update_cache: true
+  when: grafana.enabled
+
+- name: Configure Grafana settings
+  lineinfile:
+    path: /etc/grafana/grafana.ini
+    regexp: "^;?{{ item.key }} ="
+    line: "{{ item.key }} = {{ item.value }}"
+    backrefs: false
+  loop:
+    - { key: "http_port", value: "{{ grafana.http_port }}" }
+    - { key: "domain", value: "{{ grafana.domain }}" }
+    - { key: "root_url", value: "{{ grafana.root_url }}" }
+    - { key: "admin_user", value: "{{ grafana.admin_user }}" }
+    - { key: "admin_password", value: "{{ grafana.admin_password }}" }
+  notify: restart grafana
+  when: grafana.enabled
+
+- name: Ensure Grafana is enabled and running
+  systemd:
+    name: grafana-server
+    enabled: true
+    state: started
+  when: grafana.enabled
+
+- name: Install rsyslog
+  package:
+    name: rsyslog
+    state: present
+  when: rsyslog.enabled
+
+- name: Enable rsyslog service
+  service:
+    name: rsyslog
+    enabled: yes
+    state: started
+  when: rsyslog.enabled
+
+- name: Create base directory for remote logs (server mode)
+  file:
+    path: "{{ rsyslog.remote_log_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when:
+    - rsyslog.enabled
+    - rsyslog.mode == "server"
+
+- name: Configure rsyslog server listeners
+  copy:
+    dest: /etc/rsyslog.d/01-server.conf
+    mode: '0644'
+    content: |
+      module(load="imtcp")
+      input(type="imtcp" port="{{ rsyslog.tcp_port }}")
+      template(name="RemoteLogs" type="string" string="{{ rsyslog.remote_log_dir }}/%HOSTNAME%/%PROGRAMNAME%.log")
+      *.* ?RemoteLogs
+      & stop
+  notify: restart rsyslog
+  when:
+    - rsyslog.enabled
+    - rsyslog.mode == "server"
+
+- name: Filter out specific logs
+  copy:
+    dest: /etc/rsyslog.d/00-filter-noise.conf
+    content: |
+      if $programname contains "ansible" then stop
+  notify: restart rsyslog
+  when:
+    - rsyslog.enabled
+    - rsyslog.mode == "server"
+    - rsyslog.filter_noise
+
+- name: Configure log rotation
+  copy:
+    dest: /etc/logrotate.d/rsyslog-remote
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      {{ rsyslog.remote_log_dir }}/*/*.log {
+        size {{ rsyslog.logrotate.size }}
+        {{ rsyslog.logrotate.schedule }}
+        missingok
+        rotate {{ rsyslog.logrotate.rotate }}
+        compress
+        notifempty
+        create 0640 root
+        sharedscripts
+        postrotate
+          /usr/lib/rsyslog/rsyslog-rotate
+        endscript
+      }
+  when:
+    - rsyslog.enabled
+    - rsyslog.mode == "server"
+    - rsyslog.logrotate.enabled
+
+- name: Configure rsyslog client forwarding
+  copy:
+    dest: /etc/rsyslog.d/90-forward.conf
+    mode: '0644'
+    content: |
+      *.* @@{{ syslog_server }}:{{ rsyslog.tcp_port }}
+  notify: restart rsyslog
+  when:
+    - rsyslog.enabled
+    - rsyslog.mode == "client"
+    - syslog_server != ""

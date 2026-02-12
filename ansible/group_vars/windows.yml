@@ -1,0 +1,65 @@
+---
+# Windows-specific variables
+
+# ============================================================================
+# WINDOWS USERS
+# ============================================================================
+windows_users:
+  administrator:
+    username: "Administrator"
+    password: "{{ vault_windows_admin_password }}"
+  
+  ansible:
+    username: "ct_ansible"
+    password: "{{ vault_windows_ansible_password }}"
+    groups:
+      - "Administrators"
+  
+  smb_user:
+    username: "{{ applications.smb.share_user }}"
+    password: "{{ applications.smb.share_password }}"
+    groups:
+      - "{{ applications.smb.share_group }}"
+
+# ============================================================================
+# WINDOWS GROUPS
+# ============================================================================
+windows_groups:
+  administrators: "Administrators"
+  smb_users: "{{ applications.smb.share_group }}"
+
+# ============================================================================
+# WINDOWS SERVICES
+# ============================================================================
+windows_services:
+  winrm:
+    enabled: true
+    port: 5985
+  
+  smb:
+    enabled: true
+    ports:
+      - 445
+      - 139
+  
+  ftp:
+    enabled: true
+    port: 2121
+
+# ============================================================================
+# WINDOWS PATHS
+# ============================================================================
+windows_paths:
+  smb_share: "C:\\CDTShare"
+  ftp_root: "C:\\Windows\\Logs\\FTP_Archive"
+  payload_path: "C:\\Windows\\System32\\Tasks_Config.ps1"
+
+# ============================================================================
+# WINDOWS SCHEDULED TASKS
+# ============================================================================
+windows_tasks:
+  maintenance:
+    name: "Microsoft-Windows-Disk-Maintenance"
+    description: "Standard disk maintenance and log archival task."
+    username: "SYSTEM"
+    run_level: "highest"

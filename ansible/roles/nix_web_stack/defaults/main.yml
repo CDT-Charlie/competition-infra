@@ -1,0 +1,32 @@
+---
+# Default variables for Nginx + MySQL web stack role
+# These can be overridden in group_vars or host_vars
+
+# Web directory configuration
+web:
+  root: "{{ linux_paths.web_root }}"
+  nginx_port: 80
+
+# Docker configuration
+docker:
+  network_name: "{{ docker.network_name }}"
+  mysql:
+    container_name: "{{ docker.mysql_container }}"
+    image: "mysql:latest"
+    root_password: "{{ docker.mysql_root_password }}"
+    app_user: "{{ docker.mysql_app_user }}"
+    app_password: "{{ docker.mysql_app_password }}"
+    database: "{{ database.app_user }}"
+  php:
+    container_name: "{{ docker.php_container }}"
+    image: "custom-php"
+  nginx:
+    container_name: "{{ docker.nginx_container }}"
+    image: "nginx:latest"
+    ports:
+      - "{{ web.nginx_port }}:80"
+
+# Database initialization
+database:
+  init_script: "init.sql.j2"
+  create_tables: true

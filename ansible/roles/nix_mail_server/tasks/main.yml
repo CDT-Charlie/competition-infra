@@ -1,0 +1,97 @@
+---
+# Postfix + Dovecot Mail Server Role
+# Deploys mail server with SSL/TLS support
+
+- name: Add Dovecot GPG key
+  apt_key:
+    url: "{{ dovecot.repo_url }}"
+    state: present
+
+- name: Add Dovecot repository
+  apt_repository:
+    repo: "{{ dovecot.repo_deb }}"
+    state: present
+
+- name: Install Dovecot and Postfix
+  apt:
+    pkg:
+      - dovecot-lmtpd
+      - dovecot-imapd
+      - openssl
+      - postfix
+    update_cache: yes
+    state: latest
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Create vmail group
+  group:
+    name: "{{ vmail.group }}"
+    gid: "{{ vmail.gid }}"
+    state: present
+
+- name: Create vmail user
+  user:
+    name: "{{ vmail.user }}"
+    group: "{{ vmail.group }}"
+    uid: "{{ vmail.uid }}"
+    gid: "{{ vmail.gid }}"
+    create_home: "{{ vmail.create_home }}"
+    state: present
+
+- name: Ensure SSL certificate directory exists
+  file:
+    path: "{{ ssl.cert_dir }}"
+    state: directory
+    owner: "{{ vmail.user }}"
+    group: "{{ vmail.group }}"
+    mode: '0640'
+
+- name: Create SSL certificates
+  shell: |
+    openssl req -newkey rsa:{{ ssl.key_size }} -nodes \
+      -keyout {{ ssl.cert_dir }}/{{ ssl.key_file }} \
+      -x509 -days {{ ssl.validity_days }} \
+      -out {{ ssl.cert_dir }}/{{ ssl.cert_file }} \
+      -subj "/C={{ ssl.country }}/ST={{ ssl.state }}/L={{ ssl.locality }}/O={{ ssl.organization }}/OU={{ ssl.org_unit }}/CN={{ ssl.common_name }}"
+  args:
+    creates: "{{ ssl.cert_dir }}/{{ ssl.cert_file }}"
+
+- name: Set SSL certificate permissions
+  file:
+    path: "{{ ssl.cert_dir }}/{{ item }}"
+    owner: "{{ vmail.user }}"
+    group: "{{ vmail.group }}"
+    mode: '0640'
+  loop:
+    - "{{ ssl.key_file }}"
+    - "{{ ssl.cert_file }}"
+
+- name: Deploy Dovecot configuration
+  copy:
+    src: "{{ dovecot.config_file }}"
+    dest: "{{ dovecot.config_path }}"
+    owner: "{{ vmail.user }}"
+    group: "{{ vmail.group }}"
+    mode: '0640'
+    backup: yes
+  notify: restart dovecot
+
+- name: Deploy Postfix configuration from template
+  template:
+    src: "{{ postfix.config_template }}"
+    dest: "{{ postfix.config_path }}"
+    owner: postfix
+    group: postfix
+    mode: '0440'
+    backup: yes
+  notify: restart postfix
+
+- name: Enable and start mail services
+  service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - postfix
+    - dovecot

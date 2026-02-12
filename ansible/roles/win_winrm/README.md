@@ -1,34 +1,46 @@
-# CSEC-473 HW2 – Ansible (WinRM + Features)
+# Windows WinRM Role
 
-**Author:** Christian Tomassetti  
-**Date:** 2026-02-04  
-**Service:** WinRM (Windows Remote Management)
+Configures WinRM service and sets up Ansible management environment on Windows hosts.
 
-## What this does
-This project contains an Ansible playbook that manages a Windows Server 2022 target via WinRM.
+## Features
 
-### Service
-- Ensures **WinRM** is enabled and running (required for Windows Ansible management)
-
-### Features (3)
-1. Creates a local user and adds it to **Administrators**
-2. Deploys a banner file to `C:\ProgramData\csec473\banner.txt`
-3. Ensures a chosen Windows service is set to **Automatic** and **Running**
-
-## Files
-- `winrm-deploy.yml` – main playbook
-- `win-inventory.ini` – inventory (update target IP/credentials)
+- Configures WinRM service (enabled and running)
+- Creates Ansible user account
+- Adds Ansible user to Administrators group
+- Deploys login banner
+- Ensures monitored service is running
 
 ## Requirements
-- Debian 12 controller with Ansible installed
-- Windows Server 2022 target reachable over WinRM (typically port 5985)
 
-## Customization
-Edit variables at the top of `winrm-deploy.yml`:
-- `new_user`, `new_pass`
-- `banner_text`
-- `service`
+- Windows Server or Windows Client
+- Ansible 2.9+
+- Administrative access to Windows host
 
-## Run
-```bash
-ansible-playbook -i win-inventory.ini winrm-deploy.yml
+## Role Variables
+
+All variables use centralized `group_vars/all.yml` by default. See `defaults/main.yml` for role-specific defaults.
+
+### Key Variables
+
+- `winrm_service_name`: WinRM service name (default: "WinRM")
+- `ansible_user`: Dictionary with username, password, and groups
+- `banner`: Banner configuration (enabled, directory, filename, text)
+- `monitored_service`: Service name to ensure is running
+
+## Dependencies
+
+None
+
+## Example Playbook
+
+```yaml
+- name: Configure WinRM
+  hosts: windows
+  roles:
+    - win_winrm
+```
+
+## Notes
+
+- The Ansible user is created with password never expires
+- Banner is optional and can be disabled by setting `banner.enabled: false`

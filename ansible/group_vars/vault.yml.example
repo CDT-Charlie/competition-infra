@@ -1,0 +1,62 @@
+---
+# Ansible Vault Encrypted Variables
+# 
+# This file contains sensitive passwords and should be encrypted with ansible-vault.
+# 
+# To create the encrypted vault file:
+#   ansible-vault create group_vars/vault.yml
+# 
+# To edit the encrypted vault file:
+#   ansible-vault edit group_vars/vault.yml
+# 
+# To view the encrypted vault file:
+#   ansible-vault view group_vars/vault.yml
+# 
+# To use vault variables in playbooks, reference them like:
+#   password: "{{ vault_admin_password }}"
+#
+# When running playbooks, use:
+#   ansible-playbook playbook.yml --ask-vault-pass
+#   OR
+#   ansible-playbook playbook.yml --vault-password-file ~/.vault_pass
+
+# ============================================================================
+# STANDARD USER PASSWORDS
+# ============================================================================
+vault_admin_password: "ChangeMe_Admin123!"
+vault_operator_password: "ChangeMe_Operator123!"
+vault_service_password: "ChangeMe_Service123!"
+
+# ============================================================================
+# DATABASE PASSWORDS
+# ============================================================================
+vault_db_root_password: "ChangeMe_DBRoot123!"
+vault_db_admin_password: "ChangeMe_DBAdmin123!"
+vault_db_app_password: "ChangeMe_DBApp123!"
+
+# ============================================================================
+# APPLICATION PASSWORDS
+# ============================================================================
+vault_grafana_admin_password: "ChangeMe_Grafana123!"
+vault_mysql_root_password: "ChangeMe_MySQLRoot123!"
+vault_mysql_app_password: "ChangeMe_MySQLApp123!"
+vault_ldap_admin_password: "ChangeMe_LDAPAdmin123!"
+vault_ldap_root_password: "ChangeMe_LDAPRoot123!"
+
+# ============================================================================
+# WINDOWS PASSWORDS
+# ============================================================================
+vault_windows_admin_password: "ChangeMe_WinAdmin123!"
+vault_windows_ansible_password: "ChangeMe_WinAnsible123!"
+vault_windows_domain_safe_mode_password: "ChangeMe_DomainSafeMode123!"
+vault_windows_domain_user_password: "ChangeMe_DomainUser123!"
+vault_smb_share_password: "ChangeMe_SMBShare123!"
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# - All passwords should follow the password policy defined in all.yml
+# - Change all "ChangeMe_*" passwords before production use
+# - Use strong, unique passwords for each service
+# - Consider using a password manager to generate secure passwords
+# - Never commit unencrypted vault files to version control

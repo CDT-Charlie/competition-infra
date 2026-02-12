@@ -1,0 +1,46 @@
+---
+# Windows WinRM Role
+# Configures WinRM service, creates Ansible user, deploys banner, monitors service
+
+- name: Ensure WinRM service is enabled and running
+  ansible.windows.win_service:
+    name: "{{ winrm_service_name }}"
+    start_mode: "{{ winrm_start_mode }}"
+    state: "{{ winrm_state }}"
+
+- name: Create Ansible user
+  ansible.windows.win_user:
+    name: "{{ ansible_user.username }}"
+    password: "{{ ansible_user.password }}"
+    state: present
+    password_never_expires: true
+
+- name: Check if user is already in local Administrators
+  ansible.windows.win_shell: |
+    net localgroup Administrators | findstr /I "{{ ansible_user.username }}"
+  register: admin_member_check
+  changed_when: false
+  failed_when: false
+
+- name: Add user to local Administrators group
+  ansible.windows.win_shell: |
+    net localgroup Administrators "{{ ansible_user.username }}" /add
+  when: admin_member_check.rc != 0
+
+- name: Ensure banner directory exists
+  ansible.windows.win_file:
+    path: "{{ banner.directory }}"
+    state: directory
+  when: banner.enabled
+
+- name: Deploy banner file
+  ansible.windows.win_copy:
+    dest: "{{ banner.directory }}\\{{ banner.filename }}"
+    content: "{{ banner.text }}"
+  when: banner.enabled
+
+- name: Ensure monitored service is enabled and started
+  ansible.windows.win_service:
+    name: "{{ monitored_service }}"
+    start_mode: auto
+    state: started

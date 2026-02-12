@@ -1,0 +1,41 @@
+---
+# Default variables for Postfix + Dovecot mail server role
+# These can be overridden in group_vars or host_vars
+
+# SSL/TLS Certificate configuration
+ssl:
+  country: "{{ ssl.country }}"
+  state: "{{ ssl.state }}"
+  locality: "{{ ssl.locality }}"
+  organization: "{{ ssl.organization }}"
+  org_unit: "{{ ssl.org_unit }}"
+  common_name: "{{ ssl.common_name }}"
+  key_size: "{{ ssl.key_size }}"
+  validity_days: "{{ ssl.validity_days }}"
+  cert_dir: "{{ linux_paths.ssl_certs }}"
+  key_file: "privkey.pem"
+  cert_file: "self-signed.pem"
+
+# Postfix configuration
+postfix:
+  hostname: "{{ postfix.hostname }}"
+  domain: "{{ postfix.domain }}"
+  allowed_networks: "{{ postfix.allowed_networks }}"
+  config_template: "postfix.conf.j2"
+  config_path: "/etc/postfix/main.cf"
+
+# Dovecot configuration
+dovecot:
+  config_file: "dovecot.conf"
+  config_path: "/etc/dovecot/dovecot.conf"
+  version: "2.4"
+  repo_url: "https://repo.dovecot.org/DOVECOT-REPO-GPG-2.4"
+  repo_deb: "deb https://repo.dovecot.org/ce-2.4.0/debian/bookworm bookworm main"
+
+# Service account
+vmail:
+  user: "{{ service_accounts.vmail.username }}"
+  group: "{{ service_accounts.vmail.group }}"
+  uid: "{{ service_accounts.vmail.uid }}"
+  gid: "{{ service_accounts.vmail.gid }}"
+  create_home: "{{ service_accounts.vmail.create_home }}"

@@ -1,0 +1,65 @@
+---
+# Main site playbook for Cyber Competition Infrastructure
+# Deploys all services across Windows and Linux hosts
+
+# ============================================================================
+# WINDOWS DEPLOYMENTS
+# ============================================================================
+
+- name: Deploy Windows Domain Controller with DNS
+  hosts: windows_dc
+  roles:
+    - win_dc_dns
+
+- name: Deploy Windows LDAP + Kerberos Server
+  hosts: windows_ldap
+  vars:
+    join_domain: false  # Set to true if joining existing domain
+  roles:
+    - win_ldap_kerberos
+
+- name: Configure WinRM on Windows Hosts
+  hosts: windows
+  roles:
+    - win_winrm
+
+- name: Deploy Windows SMB + FTP Server
+  hosts: windows_fileserver
+  roles:
+    - win_smb_ftp
+
+# ============================================================================
+# LINUX DEPLOYMENTS
+# ============================================================================
+
+- name: Deploy Linux Web Stack (Nginx + MySQL)
+  hosts: webservers
+  become: yes
+  roles:
+    - nix_web_stack
+
+- name: Deploy Linux Mail Server (Postfix + Dovecot)
+  hosts: mail
+  become: yes
+  roles:
+    - nix_mail_server
+
+- name: Deploy Linux Monitoring (Grafana + rsyslog Server)
+  hosts: monitoring_server
+  become: yes
+  vars:
+    rsyslog:
+      mode: "server"
+  roles:
+    - nix_monitoring
+
+- name: Deploy Linux Monitoring Clients (rsyslog Client)
+  hosts: monitoring_clients
+  become: yes
+  vars:
+    grafana:
+      enabled: false
+    rsyslog:
+      mode: "client"
+  roles:
+    - nix_monitoring

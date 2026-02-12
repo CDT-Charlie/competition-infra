@@ -1,15 +1,11 @@
 ---
--  name: Install and configure granfana
+-  name: Install and configure Grafana
    hosts: clients
    become: true
 
-#variables used to conifgure Grafana settings 
-   vars:
-     grafana_http_port: 3000
-     grafana_domain: "CharlieGreyTeam"
-     grafana_root_url: "http://{{grafana_domain}}: {{grafana_http_port}}/"
-     grafana_admin_user: admin
-     grafana_admin_password: "Password123!" # change this!!
+# Variables are now centralized in group_vars/all.yml
+# Reference: applications.grafana.*
+# Override only if needed for this specific deployment
 
 #Mains task to insrall and configure grafana
    tasks:
@@ -48,9 +44,11 @@
         line: "{{ item.key }} = {{ item.value }}"
         backrefs: false
       loop:
-        - { key: "http_port", value: "{{ grafana_http_port }}" }
-        - { key: "domain", value: "{{ grafana_domain }}" }
-        - { key: "root_url", value: "{{ grafana_root_url }}" }
+        - { key: "http_port", value: "{{ applications.grafana.http_port }}" }
+        - { key: "domain", value: "{{ applications.grafana.domain }}" }
+        - { key: "root_url", value: "{{ applications.grafana.root_url }}" }
+        - { key: "admin_user", value: "{{ applications.grafana.admin_user }}" }
+        - { key: "admin_password", value: "{{ applications.grafana.admin_password }}" }
       notify: Restart grafana
 
 #ENsure Grafan service is enabled and running 

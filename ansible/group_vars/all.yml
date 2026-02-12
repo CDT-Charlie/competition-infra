@@ -1,0 +1,154 @@
+---
+# Centralized Variables for Cyber Competition Infrastructure
+# This file contains variables used across all hosts and services
+
+# ============================================================================
+# COMPETITION INFORMATION
+# ============================================================================
+competition_name: "CDT Charlie"
+competition_team: "GreyTeam"
+competition_domain: "example.com"
+competition_org: "CSEC473"
+competition_org_unit: "Charlie"
+
+# ============================================================================
+# STANDARD USERS
+# ============================================================================
+# Standard user accounts used across services
+standard_users:
+  admin:
+    username: "admin"
+    password: "{{ vault_admin_password }}"
+    full_name: "Administrator"
+    uid: 1000
+    gid: 1000
+  
+  operator:
+    username: "operator"
+    password: "{{ vault_operator_password }}"
+    full_name: "System Operator"
+    uid: 1001
+    gid: 1001
+  
+  service:
+    username: "service"
+    password: "{{ vault_service_password }}"
+    full_name: "Service Account"
+    uid: 1002
+    gid: 1002
+
+# ============================================================================
+# STANDARD PASSWORDS (References to vault)
+# ============================================================================
+# All passwords should reference vault variables for security
+# See group_vars/vault.yml (encrypted with ansible-vault)
+
+# Password complexity policy
+password_policy:
+  min_length: 12
+  require_uppercase: true
+  require_lowercase: true
+  require_numbers: true
+  require_special: true
+
+# ============================================================================
+# NETWORK CONFIGURATION
+# ============================================================================
+network:
+  allowed_subnets:
+    - "10.0.100.0/24"
+    - "10.0.1.0/24"
+  dns_servers:
+    - "8.8.8.8"
+    - "8.8.4.4"
+
+# ============================================================================
+# DOMAIN CONFIGURATION
+# ============================================================================
+domain:
+  fqdn: "{{ competition_domain }}"
+  netbios_name: "COMPETITION"
+  ldap_suffix: "dc={{ competition_domain.split('.')[0] }},dc={{ competition_domain.split('.')[1] }}"
+  ldap_base_dn: "{{ domain.ldap_suffix }}"
+
+# ============================================================================
+# DATABASE CONFIGURATION
+# ============================================================================
+database:
+  root_password: "{{ vault_db_root_password }}"
+  admin_user: "admin"
+  admin_password: "{{ vault_db_admin_password }}"
+  app_user: "{{ competition_team | lower }}"
+  app_password: "{{ vault_db_app_password }}"
+
+# ============================================================================
+# SERVICE ACCOUNTS
+# ============================================================================
+service_accounts:
+  vmail:
+    username: "vmail"
+    group: "vmail"
+    uid: 5000
+    gid: 5000
+    create_home: false
+  
+  postfix:
+    username: "postfix"
+    group: "postfix"
+  
+  grafana:
+    username: "grafana"
+    group: "grafana"
+
+# ============================================================================
+# APPLICATION CONFIGURATION
+# ============================================================================
+applications:
+  grafana:
+    admin_user: "{{ standard_users.admin.username }}"
+    admin_password: "{{ vault_grafana_admin_password }}"
+    http_port: 3000
+    domain: "{{ competition_team }}"
+    root_url: "http://{{ applications.grafana.domain }}:{{ applications.grafana.http_port }}/"
+  
+  mysql:
+    root_password: "{{ vault_mysql_root_password }}"
+    app_user: "{{ database.app_user }}"
+    app_password: "{{ vault_mysql_app_password }}"
+  
+  ldap:
+    admin_dn: "cn={{ standard_users.admin.username }},{{ domain.ldap_base_dn }}"
+    admin_password: "{{ vault_ldap_admin_password }}"
+    root_dn: "cn={{ standard_users.admin.username }},{{ domain.ldap_base_dn }}"
+    root_password: "{{ vault_ldap_root_password }}"
+  
+  smb:
+    share_user: "{{ competition_team | lower }}shareuser"
+    share_password: "{{ vault_smb_share_password }}"
+    share_group: "{{ competition_team }}ShareUsers"
+
+# ============================================================================
+# WINDOWS DOMAIN CONFIGURATION
+# ============================================================================
+windows_domain:
+  domain_name: "hockey.cdtcharlie.com"
+  netbios_name: "HOCKEY1"
+  safe_mode_password: "{{ vault_windows_domain_safe_mode_password }}"
+  dc_hostname: "DC1"
+  ou_name: "{{ competition_team }}"
+  group_name: "BlueTeamAdmins"
+  
+  # Domain user account
+  domain_user:
+    sam: "alice"
+    given: "Alice"
+    surname: "Operator"
+    password: "{{ vault_windows_domain_user_password }}"
+
+# ============================================================================
+# ANSIBLE CONNECTION CREDENTIALS
+# ============================================================================
+# These should be set per-host in inventory or host_vars
+# Default values for development/testing
+ansible_user_default: "Administrator"  # Windows
+ansible_user_default_linux: "root"     # Linux

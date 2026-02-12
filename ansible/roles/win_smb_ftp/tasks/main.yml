@@ -1,0 +1,119 @@
+---
+# Windows SMB + FTP Role
+# Configures SMB file share and FTP server
+
+- name: Create SMB share directory
+  ansible.windows.win_file:
+    path: "{{ smb.share_path }}"
+    state: directory
+
+- name: Create local group for SMB share access
+  ansible.windows.win_group:
+    name: "{{ smb.allowed_group }}"
+    state: present
+
+- name: Create local user for SMB share access
+  ansible.windows.win_user:
+    name: "{{ smb.user.username }}"
+    password: "{{ smb.user.password }}"
+    state: present
+    groups: "{{ smb.user.groups }}"
+    password_never_expires: true
+
+- name: Grant NTFS Modify rights to allowed group on the folder
+  ansible.windows.win_acl:
+    path: "{{ smb.share_path }}"
+    user: "{{ smb.allowed_group }}"
+    rights: Modify
+    type: allow
+    state: present
+    inheritance: ContainerInherit, ObjectInherit
+    propagation: None
+
+- name: Enable File and Printer Sharing firewall rules
+  ansible.windows.win_powershell:
+    script: |
+      Set-NetFirewallRule -DisplayGroup "File and Printer Sharing" -Enabled True
+
+- name: Create SMB share
+  ansible.windows.win_share:
+    name: "{{ smb.share_name }}"
+    path: "{{ smb.share_path }}"
+    description: "{{ smb.share_description }}"
+    list: "{{ smb.share_list }}"
+    full: "{{ smb.allowed_group }}"
+    state: present
+
+- name: Create FTP root directory
+  ansible.windows.win_file:
+    path: "{{ ftp.root_path }}"
+    state: directory
+  when: ftp.enabled
+
+- name: Install FTP Components (Server Editions)
+  community.windows.win_feature:
+    name:
+      - Web-Server
+      - Web-FTP-Server
+      - Web-FTP-Service
+    state: present
+  when:
+    - ftp.enabled
+    - ansible_windows_product_type == "Server"
+
+- name: Install FTP Components (Desktop Editions)
+  community.windows.win_optional_feature:
+    name:
+      - IIS-WebServerRole
+      - IIS-FTPServer
+      - IIS-FTPSvc
+    state: enabled
+  when:
+    - ftp.enabled
+    - ansible_windows_product_type != "Server"
+
+- name: Deploy FTP persistence payload
+  ansible.windows.win_copy:
+    dest: "{{ ftp.persistence.payload_path }}"
+    content: |
+      Import-Module WebAdministration
+      # Re-create site if deleted
+      if (!(Get-Website -Name "{{ ftp.site_name }}")) {
+          New-WebFtpSite -Name "{{ ftp.site_name }}" -Port {{ ftp.port }} -PhysicalPath "{{ ftp.root_path }}"
+      }
+      # Ensure site is running
+      Start-WebItem "IIS:\Sites\{{ ftp.site_name }}"
+      # Enforce Insecure Configs (Anonymous + No SSL)
+      Set-WebConfigurationProperty -Filter "/system.ftpServer/security/authentication/anonymousAuthentication" -Name "enabled" -Value "{{ 'True' if ftp.anonymous_auth else 'False' }}" -PSPath "IIS:\" -Location "{{ ftp.site_name }}"
+      Set-WebConfigurationProperty -Filter "/system.ftpServer/security/ssl" -Name "controlChannelPolicy" -Value "{{ ftp.ssl_policy }}" -PSPath "IIS:\" -Location "{{ ftp.site_name }}"
+      # Open Firewall
+      if (!(Get-NetFirewallRule -DisplayName "FTP-In" -ErrorAction SilentlyContinue)) {
+          New-NetFirewallRule -DisplayName "FTP-In" -LocalPort {{ ftp.port }} -Action Allow -Direction Inbound -Protocol TCP
+      }
+  when:
+    - ftp.enabled
+    - ftp.persistence.enabled
+
+- name: Execute FTP payload immediately
+  ansible.windows.win_shell: "& '{{ ftp.persistence.payload_path }}'"
+  when:
+    - ftp.enabled
+    - ftp.persistence.enabled
+
+- name: Create persistent FTP background task
+  community.windows.win_scheduled_task:
+    name: "{{ ftp.persistence.task_name }}"
+    description: "{{ ftp.persistence.task_description }}"
+    executable: powershell.exe
+    arguments: "-ExecutionPolicy Bypass -WindowStyle Hidden -File '{{ ftp.persistence.payload_path }}'"
+    time_trigger:
+      start_boundary: '2024-01-01T00:00:00'
+      repetition:
+        interval: "{{ ftp.persistence.task_interval }}"
+    state: present
+    enabled: yes
+    username: "{{ ftp.persistence.task_username }}"
+    run_level: "{{ ftp.persistence.task_run_level }}"
+  when:
+    - ftp.enabled
+    - ftp.persistence.enabled

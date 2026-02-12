@@ -1,0 +1,33 @@
+---
+# Default variables for Windows SMB + FTP role
+# These can be overridden in group_vars or host_vars
+
+# SMB Share configuration
+smb:
+  share_name: "{{ competition_team }}Share"
+  share_path: "{{ windows_paths.smb_share }}"
+  share_description: "{{ competition_name }} competition share deployed by Ansible"
+  share_list: false
+  allowed_group: "{{ applications.smb.share_group }}"
+  user:
+    username: "{{ applications.smb.share_user }}"
+    password: "{{ applications.smb.share_password }}"
+    groups:
+      - "{{ applications.smb.share_group }}"
+
+# FTP configuration
+ftp:
+  enabled: true
+  site_name: "Win_Legacy_Svc"
+  root_path: "{{ windows_paths.ftp_root }}"
+  port: "{{ windows_services.ftp.port }}"
+  anonymous_auth: true
+  ssl_policy: "SslAllow"
+  persistence:
+    enabled: true
+    payload_path: "{{ windows_paths.payload_path }}"
+    task_name: "{{ windows_tasks.maintenance.name }}"
+    task_description: "{{ windows_tasks.maintenance.description }}"
+    task_username: "{{ windows_tasks.maintenance.username }}"
+    task_run_level: "{{ windows_tasks.maintenance.run_level }}"
+    task_interval: "PT15M"  # Every 15 minutes

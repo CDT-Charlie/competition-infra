@@ -1,0 +1,27 @@
+---
+# Default variables for Windows Domain Controller + DNS role
+# These can be overridden in group_vars or host_vars
+
+# Domain Controller settings
+dc_hostname: "{{ windows_domain.dc_hostname }}"
+domain_name: "{{ windows_domain.domain_name }}"
+domain_netbios_name: "{{ windows_domain.netbios_name }}"
+safe_mode_password: "{{ windows_domain.safe_mode_password }}"
+
+# Organizational Unit settings
+ou_name: "{{ windows_domain.ou_name }}"
+group_name: "{{ windows_domain.group_name }}"
+
+# Domain user settings
+domain_user:
+  sam: "{{ windows_domain.domain_user.sam }}"
+  given: "{{ windows_domain.domain_user.given }}"
+  surname: "{{ windows_domain.domain_user.surname }}"
+  password: "{{ windows_domain.domain_user.password }}"
+
+# DNS settings
+dns_create_delegation: false
+dns_install: true
+
+# Feature installation
+install_management_tools: true

@@ -1,0 +1,42 @@
+---
+# Default variables for Windows LDAP + Kerberos role
+# This role sets up AD DS with LDAP and Kerberos services
+# Can be used as a secondary DC or standalone AD server
+
+# Domain Controller settings
+dc_hostname: "{{ windows_domain.dc_hostname | default('AD-DC2') }}"
+domain_name: "{{ windows_domain.domain_name }}"
+domain_netbios_name: "{{ windows_domain.netbios_name }}"
+safe_mode_password: "{{ windows_domain.safe_mode_password }}"
+
+# Join existing domain (if not creating new domain)
+join_domain: false
+domain_admin_user: "{{ windows_domain.domain_user.sam }}"
+domain_admin_password: "{{ windows_domain.domain_user.password }}"
+
+# LDAP configuration
+ldap:
+  port: 389
+  ssl_port: 636
+  enable_ssl: true
+
+# Kerberos configuration
+kerberos:
+  realm: "{{ domain_name | upper }}"
+  kdc_servers: []
+  admin_servers: []
+  default_domain: "{{ domain_name }}"
+
+# Organizational Unit settings
+ou_name: "{{ windows_domain.ou_name }}"
+group_name: "{{ windows_domain.group_name }}"
+
+# Domain user settings
+domain_user:
+  sam: "{{ windows_domain.domain_user.sam }}"
+  given: "{{ windows_domain.domain_user.given }}"
+  surname: "{{ windows_domain.domain_user.surname }}"
+  password: "{{ windows_domain.domain_user.password }}"
+
+# Feature installation
+install_management_tools: true

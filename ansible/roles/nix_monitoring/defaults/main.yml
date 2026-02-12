@@ -1,0 +1,32 @@
+---
+# Default variables for Grafana + rsyslog monitoring role
+# These can be overridden in group_vars or host_vars
+
+# Grafana configuration
+grafana:
+  enabled: true
+  admin_user: "{{ applications.grafana.admin_user }}"
+  admin_password: "{{ applications.grafana.admin_password }}"
+  http_port: "{{ applications.grafana.http_port }}"
+  domain: "{{ applications.grafana.domain }}"
+  root_url: "{{ applications.grafana.root_url }}"
+  repo_url: "https://apt.grafana.com/gpg.key"
+  repo_deb: "deb https://apt.grafana.com stable main"
+  repo_filename: "grafana"
+
+# rsyslog configuration
+rsyslog:
+  enabled: true
+  mode: "server"  # server or client
+  remote_log_dir: "/var/log/remote"
+  tcp_port: 514
+  filter_noise: true
+  logrotate:
+    enabled: true
+    size: "100k"
+    rotate: 2
+    compress: true
+    schedule: "hourly"
+
+# Central syslog server (for clients)
+syslog_server: "{{ groups['syslog_central'] | default([]) | first | default('') }}"

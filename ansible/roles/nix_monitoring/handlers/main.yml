@@ -1,0 +1,12 @@
+---
+# Handlers for monitoring role
+
+- name: restart grafana
+  systemd:
+    name: grafana-server
+    state: restarted
+
+- name: restart rsyslog
+  service:
+    name: rsyslog
+    state: restarted

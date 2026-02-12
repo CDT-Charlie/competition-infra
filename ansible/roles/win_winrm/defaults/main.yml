@@ -1,0 +1,27 @@
+---
+# Default variables for Windows WinRM role
+# These can be overridden in group_vars or host_vars
+
+# WinRM service configuration
+winrm_service_name: "WinRM"
+winrm_start_mode: "auto"
+winrm_state: "started"
+
+# User to create for Ansible access
+ansible_user:
+  username: "{{ windows_users.ansible.username }}"
+  password: "{{ windows_users.ansible.password }}"
+  groups: "{{ windows_users.ansible.groups }}"
+
+# Banner configuration
+banner:
+  enabled: true
+  directory: "C:\\ProgramData\\csec473"
+  filename: "banner.txt"
+  text: |
+    CSEC-473 Competition Infrastructure
+    Host: {{ inventory_hostname }}
+    Managed by Ansible
+
+# Service to ensure is running
+monitored_service: "wuauserv"  # Windows Update service

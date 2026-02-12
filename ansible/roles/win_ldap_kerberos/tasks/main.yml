@@ -1,0 +1,115 @@
+---
+# Windows LDAP + Kerberos Role
+# Sets up AD DS with LDAP and Kerberos services
+# Note: AD DS includes both LDAP and Kerberos automatically
+
+- name: Set DC hostname
+  ansible.windows.win_hostname:
+    name: "{{ dc_hostname }}"
+  register: rename_result
+
+- name: Reboot if hostname change requires it
+  ansible.windows.win_reboot:
+    msg: "Rebooting after hostname changes"
+  when: rename_result.reboot_required
+
+- name: Install Active Directory Domain Services (ADDS)
+  ansible.windows.win_feature:
+    name: AD-Domain-Services
+    state: present
+    include_management_tools: "{{ install_management_tools }}"
+  register: ad_feature_result
+
+- name: Reboot after ADDS feature install if needed
+  ansible.windows.win_reboot:
+    msg: "Rebooting after ADDS feature install"
+  when: ad_feature_result.reboot_required | default(false)
+
+- name: Join existing domain
+  ansible.windows.win_domain_membership:
+    dns_domain_name: "{{ domain_name }}"
+    domain_admin_user: "{{ domain_admin_user }}@{{ domain_name }}"
+    domain_admin_password: "{{ domain_admin_password }}"
+    state: domain
+    hostname: "{{ dc_hostname }}"
+  register: domain_join_result
+  when: join_domain
+
+- name: Reboot after domain join if needed
+  ansible.windows.win_reboot:
+    msg: "Rebooting after domain join"
+  when:
+    - join_domain
+    - domain_join_result.reboot_required | default(false)
+
+- name: Promote to Domain Controller (if not joining)
+  microsoft.ad.domain_controller:
+    dns_domain_name: "{{ domain_name }}"
+    domain_netbios_name: "{{ domain_netbios_name }}"
+    safe_mode_password: "{{ safe_mode_password }}"
+    install_dns: false
+    reboot: true
+  register: dc_promote_result
+  when: not join_domain
+
+- name: Reboot after DC promotion if needed
+  ansible.windows.win_reboot:
+    msg: "Rebooting after DC promotion"
+  when:
+    - not join_domain
+    - dc_promote_result.reboot_required | default(true)
+
+- name: Build domain DN path
+  set_fact:
+    domain_dn: "DC={{ domain_name.split('.') | join(',DC=') }}"
+  when: not join_domain
+
+- name: Create OU (if not joining domain)
+  microsoft.ad.ou:
+    name: "{{ ou_name }}"
+    path: "{{ domain_dn }}"
+    state: present
+  when: not join_domain
+
+- name: Create group in OU (if not joining domain)
+  microsoft.ad.group:
+    name: "{{ group_name }}"
+    path: "OU={{ ou_name }},{{ domain_dn }}"
+    scope: global
+    state: present
+  when: not join_domain
+
+- name: Create user in OU (if not joining domain)
+  microsoft.ad.user:
+    name: "{{ domain_user.sam }}"
+    firstname: "{{ domain_user.given }}"
+    lastname: "{{ domain_user.surname }}"
+    password: "{{ domain_user.password }}"
+    path: "OU={{ ou_name }},{{ domain_dn }}"
+    enabled: true
+    state: present
+  when: not join_domain
+
+- name: Add user to group (if not joining domain)
+  ansible.windows.win_powershell:
+    script: |
+      Import-Module ActiveDirectory
+      Add-ADGroupMember -Identity "{{ group_name }}" -Members "{{ domain_user.sam }}" -ErrorAction SilentlyContinue
+  when: not join_domain
+
+- name: Verify LDAP service is running
+  ansible.windows.win_service:
+    name: NTDS
+    state: started
+
+- name: Verify Kerberos Key Distribution Center is running
+  ansible.windows.win_service:
+    name: KDC
+    state: started
+
+- name: Configure LDAP ports (informational)
+  debug:
+    msg: |
+      LDAP is available on port {{ ldap.port }}
+      LDAP SSL is available on port {{ ldap.ssl_port }}
+      Kerberos realm: {{ kerberos.realm }}

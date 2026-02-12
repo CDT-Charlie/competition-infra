@@ -1,0 +1,89 @@
+---
+# Linux-specific variables
+
+# ============================================================================
+# LINUX USERS
+# ============================================================================
+linux_users:
+  admin:
+    username: "{{ standard_users.admin.username }}"
+    password: "{{ standard_users.admin.password }}"
+    uid: "{{ standard_users.admin.uid }}"
+    gid: "{{ standard_users.admin.gid }}"
+    groups:
+      - "sudo"
+      - "adm"
+  
+  operator:
+    username: "{{ standard_users.operator.username }}"
+    password: "{{ standard_users.operator.password }}"
+    uid: "{{ standard_users.operator.uid }}"
+    gid: "{{ standard_users.operator.gid }}"
+    groups:
+      - "users"
+
+# ============================================================================
+# LINUX GROUPS
+# ============================================================================
+linux_groups:
+  admins:
+    name: "admins"
+    gid: 5000
+  
+  operators:
+    name: "operators"
+    gid: 5001
+
+# ============================================================================
+# LINUX PATHS
+# ============================================================================
+linux_paths:
+  web_root: "/opt/web"
+  mail_home: "/srv/mail"
+  ssl_certs: "/etc/ssl-certs"
+  ldap_base_ldif: "/tmp/base.ldif"
+  admin_file: "/srv/admin-file.txt"
+
+# ============================================================================
+# LINUX PACKAGE MANAGEMENT
+# ============================================================================
+package_manager:
+  debian:
+    update_cache: true
+    state: "present"
+  
+  redhat:
+    state: "present"
+
+# ============================================================================
+# SSL/TLS CONFIGURATION
+# ============================================================================
+ssl:
+  country: "US"
+  state: "NewYork"
+  locality: "Rochester"
+  organization: "{{ competition_org }}"
+  org_unit: "{{ competition_org_unit }}"
+  common_name: "{{ competition_domain }}"
+  key_size: 2048
+  validity_days: 365
+
+# ============================================================================
+# POSTFIX CONFIGURATION
+# ============================================================================
+postfix:
+  hostname: "smtp"
+  domain: "{{ competition_domain }}"
+  allowed_networks: "{{ network.allowed_subnets | join(', ') }}"
+
+# ============================================================================
+# DOCKER CONFIGURATION
+# ============================================================================
+docker:
+  network_name: "webnet"
+  mysql_container: "mysql"
+  php_container: "php"
+  nginx_container: "nginx"
+  mysql_root_password: "{{ applications.mysql.root_password }}"
+  mysql_app_user: "{{ applications.mysql.app_user }}"
+  mysql_app_password: "{{ applications.mysql.app_password }}"

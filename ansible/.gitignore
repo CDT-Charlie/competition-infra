@@ -1,0 +1,30 @@
+# Ansible Vault files (should never be committed unencrypted)
+group_vars/vault.yml
+host_vars/*/vault.yml
+*.vault
+
+# Vault password files
+.vault_pass
+vault_pass.txt
+*.vault_pass
+
+# Ansible retry files
+*.retry
+
+# Ansible log files
+ansible.log
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Python cache
+__pycache__/
+*.pyc
+
+# IDE files
+.vscode/
+.idea/
+
+.vscode
