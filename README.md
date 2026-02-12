@@ -103,15 +103,12 @@ competition-infra/
   - Usage examples
   - Troubleshooting
 
-- **[ansible/RESTRUCTURE_COMPLETE.md](ansible/RESTRUCTURE_COMPLETE.md)** - Restructure implementation details
-
 ## Architecture
 
 ### Design Principles
 
 - **Simple Structure** - Only `tasks/` and `files/` folders in roles
 - **Centralized Variables** - All variables in `group_vars/`
-- **Idempotent** - Safe to run multiple times
 - **Uniform** - Consistent structure across all roles
 - **Base Roles** - Common setup tasks separated
 
@@ -175,10 +172,6 @@ ansible-playbook -i inventory.yml site.yml --syntax-check
 ansible-playbook -i inventory.yml site.yml --check
 ```
 
-## Security Notes
-
-⚠️ **Important:** Currently, passwords are stored in plain text in `group_vars/` files. For production use, consider implementing Ansible Vault to encrypt sensitive data.
-
 ## Contributing
 
 When adding new roles or modifying existing ones:
@@ -193,9 +186,6 @@ When adding new roles or modifying existing ones:
 
 See [LICENSE](LICENSE) file for details.
 
-## Team
-
-RIT Cyber Defense Techniques Group Charlie Grey Team
 
 ## Support
 
