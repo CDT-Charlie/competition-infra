@@ -1,0 +1,17 @@
+---
+# Base Linux role - Common Linux system setup
+# This role provides basic Linux configuration that other roles can depend on
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install common packages
+  apt:
+    name:
+      - curl
+      - wget
+      - gnupg
+      - software-properties-common
+    state: present
