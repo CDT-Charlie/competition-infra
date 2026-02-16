@@ -42,17 +42,21 @@ role_name/
 
 1. **Install Ansible** (2.9+)
    ```bash
-   pip install ansible
+   sudo apt install ansible -y
+   ```
+2. **Install OpenStack Package**
+   ```bash
+   sudo apt install python3-openstackclient
    ```
 
-2. **Install Required Collections**
+3. **Install Required Collections**
    ```bash
    ansible-galaxy collection install microsoft.ad
    ansible-galaxy collection install community.windows
    ansible-galaxy collection install community.docker
    ```
 
-3. **Configure Inventory**
+4. **Configure Inventory**
    Create or edit `inventory.yml` with your target hosts:
    ```yaml
    all:
