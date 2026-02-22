@@ -1,6 +1,6 @@
 # Terraform Infrastructure
 ## Needed files not directly in the repository:
-- `cdtcharlie-openrc.sh` - this file is important for hosting the Terraform in our OpenStack project (can get the file from the Shared Drive or in the OpenStack project from downloading it from `Project / API Access`)
+- `app-cred-terraform-cdt-openrc.sh` - this file is important for hosting the Terraform in our OpenStack project (can get the file from the Shared Drive or in the OpenStack project from downloading it from `Identity / Application Credentials / terraform-cdt`)
 
 ## The different files in the foler and their purposes
 - `providers.tf`: is used for the Terraform configuration and the passed in OpenStack provider configuration
@@ -12,15 +12,17 @@
 
 Source the openrc script (will prompt for your RIT password)
 ```
-source cdtcharlie-openrc.sh
+source app-cred-terraform-cdt-openrc.sh
 ```
 
-can check it worked by doing any of the following
+can check it worked by doing any of the following, if it doesn't have the v3 its not right
 ```
 echo $OS_AUTH_URL
-echo $OS_PROJECT_NAME
-echo $OS_USERNAME
-echo $OS_REGION_NAME
+```
+
+Export this URL (substitute the Xs with the main openstack URL)
+```
+export OS_AUTH_URL="https://XXXXXXXXXXXXXXX:5000/v3"
 ```
 
 Initialize the Terraform environment
