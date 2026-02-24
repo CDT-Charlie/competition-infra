@@ -10,9 +10,9 @@
 
 ## Initializing the environment
 
-Source the openrc script (will prompt for your RIT password)
+Source the openrc script
 ```
-source app-cred-terraform-cdt-openrc.sh
+source app-cred-terratake2-openrc.sh
 ```
 
 can check it worked by doing any of the following, if it doesn't have the v3 its not right
@@ -28,6 +28,11 @@ export OS_AUTH_URL="https://XXXXXXXXXXXXXXX:5000/v3"
 Initialize the Terraform environment
 ```
 terraform init
+```
+
+See changes that will be applied
+```
+terraform plan
 ```
 
 Apply the new changes in the `.tf` to the current environment
