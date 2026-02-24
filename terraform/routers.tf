@@ -17,3 +17,17 @@ resource "openstack_networking_router_interface_v2" "admin" {
     subnet_id = openstack_networking_subnet_v2.admin.id
 }
 
+resource "openstack_networking_router_interface_v2" "red" {
+    router_id = openstack_networking_router_v2.main.id
+    subnet_id = openstack_networking_subnet_v2.red.id
+}
+
+resource "openstack_networking_router_interface_v2" "blue1" {
+    router_id = openstack_networking_router_v2.main.id
+    subnet_id = openstack_networking_subnet_v2.blue1.id
+}
+
+resource "openstack_networking_router_interface_v2" "blue2" {
+    router_id = openstack_networking_router_v2.main.id
+    subnet_id = openstack_networking_subnet_v2.blue2.id
+}
