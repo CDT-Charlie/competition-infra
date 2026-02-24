@@ -1,12 +1,15 @@
 # Terraform Infrastructure
 ## Needed files not directly in the repository:
-- `app-cred-terraform-cdt-openrc.sh` - this file is important for hosting the Terraform in our OpenStack project (can get the file from the Shared Drive or in the OpenStack project from downloading it from `Identity / Application Credentials / terraform-cdt`)
+- `app-cred-terratake2-openrc.sh` - this file is important for hosting the Terraform in our OpenStack project (can get the file from the Shared Drive or in the OpenStack project from downloading it from `Identity / Application Credentials / terraform-cdt`)
 
-## The different files in the foler and their purposes
+## The different files in the folder and their purposes
 - `providers.tf`: is used for the Terraform configuration and the passed in OpenStack provider configuration
 - `networks.tf`: defines the networks and subnets resources
 - `routers.tf`: defines the router and interfaces connected to the router
 - `outputs.tf`: defines IDs to debug and makes it easy to confirm what Terraform created and to reuse IDs later (ports/instances)
+- `variables.tf`: defines the inputs for the infra
+- `terraform.tfvars`: values for the variables
+- `instances.tf`: defines the actual infrastructure resources like virtual NICs and VMs
 
 ## Initializing the environment
 
