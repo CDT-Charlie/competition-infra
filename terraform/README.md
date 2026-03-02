@@ -9,7 +9,7 @@
 - `outputs.tf`: defines IDs to debug and makes it easy to confirm what Terraform created and to reuse IDs later (ports/instances)
 - `variables.tf`: defines the inputs for the infra
 - `terraform.tfvars`: values for the variables
-- `instances.tf`: defines the actual infrastructure resources like virtual NICs and VMs
+- `instances.tf`: defines the actual infrastructure resources like virtual NICs and VMs, as well as the volumes attached to the instances
 
 ## Initializing the environment
 
