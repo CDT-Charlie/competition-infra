@@ -1,99 +1,78 @@
 # Instance definitions for all of the red team VMs
 kali_instances = {
-  "red-kali-1" = {
-    hostname = "red-kali-1"
+  "red-kali-lucas" = {
+    hostname = "red-kali-lucas"
     ip       = "192.168.0.11"
     flavor   = "large"
     image    = "Kali2025"
   }
 
-  "red-kali-2" = {
-    hostname = "red-kali-2"
+  "red-kali-christian" = {
+    hostname = "red-kali-christian"
     ip       = "192.168.0.12"
     flavor   = "large"
     image    = "Kali2025"
   }
 
-    "red-kali-3" = {
-    hostname = "red-kali-3"
+  "red-kali-swapnil" = {
+    hostname = "red-kali-swapnil"
     ip       = "192.168.0.13"
     flavor   = "large"
     image    = "Kali2025"
   }
 
-    "red-kali-4" = {
-    hostname = "red-kali-4"
+  "red-kali-oliver" = {
+    hostname = "red-kali-oliver"
     ip       = "192.168.0.14"
     flavor   = "large"
     image    = "Kali2025"
   }
 
-    "red-kali-5" = {
-    hostname = "red-kali-5"
+  "red-kali-sonia" = {
+    hostname = "red-kali-sonia"
     ip       = "192.168.0.15"
     flavor   = "large"
     image    = "Kali2025"
   }
 
-    "red-kali-6" = {
-    hostname = "red-kali-6"
+  "red-kali-adam" = {
+    hostname = "red-kali-adam"
     ip       = "192.168.0.16"
     flavor   = "large"
     image    = "Kali2025"
   }
 
-    "red-kali-7" = {
-    hostname = "red-kali-7"
+  "red-kali-gabriel" = {
+    hostname = "red-kali-gabriel"
     ip       = "192.168.0.17"
     flavor   = "large"
     image    = "Kali2025"
   }
 
-      "red-kali-8" = {
-    hostname = "red-kali-8"
+  "red-kali-bryant" = {
+    hostname = "red-kali-bryant"
     ip       = "192.168.0.18"
     flavor   = "large"
     image    = "Kali2025"
   }
 
-    "red-kali-9" = {
-    hostname = "red-kali-9"
+  "red-kali-winter" = {
+    hostname = "red-kali-winter"
     ip       = "192.168.0.19"
     flavor   = "large"
     image    = "Kali2025"
   }
 
-    "red-kali-10" = {
-    hostname = "red-kali-10"
+  "red-kali-caroline" = {
+    hostname = "red-kali-caroline"
     ip       = "192.168.0.10"
     flavor   = "large"
     image    = "Kali2025"
   }
 }
 
-# Victim instances (Windows Server, Windows 10, Linux) — ~10 total
+# Victim instances (3 Windows Server, 3 Ubuntu, 3 Debian) — 9 total
 victim_instances = {
-  "red-victim-win10-1" = {
-    hostname = "red-victim-win10-1"
-    ip       = "192.168.0.20"
-    flavor   = "medium"
-    image    = "Windows10"
-  }
-
-  "red-victim-win10-2" = {
-    hostname = "red-victim-win10-2"
-    ip       = "192.168.0.21"
-    flavor   = "medium"
-    image    = "Windows10"
-  }
-
-  "red-victim-win10-3" = {
-    hostname = "red-victim-win10-3"
-    ip       = "192.168.0.22"
-    flavor   = "medium"
-    image    = "Windows10"
-  }
-
   "red-victim-winserv1" = {
     hostname = "red-victim-winserv1"
     ip       = "192.168.0.23"
@@ -119,28 +98,42 @@ victim_instances = {
     hostname = "red-victim-ubuntu1"
     ip       = "192.168.0.26"
     flavor   = "medium"
-    image    = "Ubuntu2204Desktop"
+    image    = "Ubuntu2404Desktop"
   }
 
   "red-victim-ubuntu2" = {
     hostname = "red-victim-ubuntu2"
     ip       = "192.168.0.27"
     flavor   = "medium"
-    image    = "Ubuntu2204Desktop"
+    image    = "Ubuntu2404Desktop"
   }
 
   "red-victim-ubuntu3" = {
-    hostname = "red-victim-ubuntu-2404"
+    hostname = "red-victim-ubuntu3"
     ip       = "192.168.0.28"
     flavor   = "medium"
     image    = "Ubuntu2404Desktop"
   }
 
-  "red-victim-debian" = {
-    hostname = "red-victim-debian"
+  "red-victim-debian1" = {
+    hostname = "red-victim-debian1"
     ip       = "192.168.0.29"
     flavor   = "medium"
-    image    = "DebianBookworm12"
+    image    = "DebianTrixie13"
+  }
+
+  "red-victim-debian2" = {
+    hostname = "red-victim-debian2"
+    ip       = "192.168.0.30"
+    flavor   = "medium"
+    image    = "DebianTrixie13"
+  }
+
+  "red-victim-debian3" = {
+    hostname = "red-victim-debian3"
+    ip       = "192.168.0.31"
+    flavor   = "medium"
+    image    = "DebianTrixie13"
   }
 }
 

@@ -4,7 +4,7 @@ variable "kali_instances" {
     hostname         = string
     ip               = string
     flavor           = string
-    image           = string
+    image            = string
     root_volume_size = optional(number, 60)
   }))
 }
