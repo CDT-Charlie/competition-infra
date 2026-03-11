@@ -1,0 +1,8 @@
+---
+# Windows victims: use WinRM to bootstrap OpenSSH Server (then you can use SSH)
+ansible_connection: winrm
+ansible_winrm_transport: ntlm
+ansible_winrm_server_cert_validation: ignore
+# Set via -e or vault; e.g. -e ansible_user=Administrator -e ansible_password='...'
+# ansible_user: Administrator
+# ansible_password: "{{ vault_windows_password }}"

@@ -1,0 +1,5 @@
+---
+# Linux victims: use the same key as Terraform (CharlieSpring26) or set user/key.
+# Ubuntu cloud images: ansible_user=ubuntu. Debian: often debian or admin — set in inventory if needed.
+ansible_user: ubuntu
+# ansible_ssh_private_key_file: ~/.ssh/your_key
