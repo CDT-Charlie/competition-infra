@@ -1,6 +1,11 @@
 ---
-# Linux victims: use the same key as Terraform (CharlieSpring26) or set user/key.
-# Ubuntu cloud images: ansible_user=ubuntu. Debian: often debian or admin — set in inventory if needed.
-# Set the SSH key that matches the OpenStack key_pair used by Terraform (e.g. CharlieSpring26).
-# Example (on Kali): /home/kali/.ssh/CharlieSpring26
-# ansible_ssh_private_key_file: /path/to/CharlieSpring26_private_key
+# Linux victims: password-based SSH (CyberRange default account).
+# We intentionally read the password from an environment variable so it is not committed to git.
+#
+# On the Ansible control node (your Kali), set:
+#   export CYBERRANGE_PASSWORD='Cyberrange123!'
+#
+# If your images use a different default user, override `ansible_user` in inventory.yml per host.
+ansible_user: cyberrange
+ansible_password: "{{ lookup('env', 'CYBERRANGE_PASSWORD') }}"
+ansible_become_password: "{{ lookup('env', 'CYBERRANGE_PASSWORD') }}"
