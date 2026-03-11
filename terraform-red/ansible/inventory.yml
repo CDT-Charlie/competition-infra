@@ -6,16 +6,22 @@ all:
       hosts:
         red-victim-ubuntu1:
           ansible_host: 192.168.0.26
+          ansible_user: cyberrange
         red-victim-ubuntu2:
           ansible_host: 192.168.0.27
+          ansible_user: cyberrange
         red-victim-ubuntu3:
           ansible_host: 192.168.0.28
+          ansible_user: cyberrange
         red-victim-debian1:
           ansible_host: 192.168.0.29
+          ansible_user: cyberrange
         red-victim-debian2:
           ansible_host: 192.168.0.30
+          ansible_user: cyberrange
         red-victim-debian3:
           ansible_host: 192.168.0.31
+          ansible_user: cyberrange
     windows_victims:
       hosts:
         red-victim-winserv1:
