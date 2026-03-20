@@ -1,0 +1,6 @@
+# WinRM settings for Blue Team Windows hosts.
+ansible_connection: winrm
+ansible_user: "{{ bootstrap_user.username }}"
+ansible_password: "{{ bootstrap_user.password }}"
+ansible_winrm_transport: basic
+ansible_winrm_server_cert_validation: ignore

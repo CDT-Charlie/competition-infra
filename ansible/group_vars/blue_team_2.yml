@@ -1,0 +1,16 @@
+blue_team_admin_users:
+  - tikhonov
+  - kulagin
+  - brezhnev
+  - tretiak
+  - larionov
+
+blue_team_local_users:
+  - zhukov
+  - gusev
+  - makarov
+  - fetisov
+  - kasatonov
+  - krutov
+  - lebedev
+  - vasiliev

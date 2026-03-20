@@ -82,6 +82,8 @@ role_name/
 ansible-playbook -i inventory.yml site.yml
 ```
 
+`inventory.yml` is the primary Blue Team competition inventory (including user provisioning and bootstrap user removal).
+
 ### Deploy Specific Service
 
 ```bash
@@ -225,6 +227,10 @@ Variables are organized in `group_vars/`:
 - **`all.yml`** - Common variables for all hosts
 - **`windows.yml`** - Windows-specific variables
 - **`linux.yml`** - Linux-specific variables
+- **`blue_linux.yml`** - Blue Team Linux connection/bootstrap settings
+- **`blue_windows.yml`** - Blue Team Windows connection/bootstrap settings
+- **`blue_team_1.yml`** - Blue Team 1 admin/local user lists
+- **`blue_team_2.yml`** - Blue Team 2 admin/local user lists
 
 ### Variable Structure
 

@@ -108,3 +108,5 @@
   roles:
     - nix_base
     - nix_monitoring
+
+- import_playbook: blue_team_users.yml

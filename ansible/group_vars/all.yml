@@ -6,3 +6,18 @@ ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 default_password: "Password123!"
 admin_def_passwd: "ChangeThisImmediately!"
 
+# "Bootstrap" account used before competition user provisioning.
+bootstrap_user:
+  username: "cyberrange"
+  password: "Cyberrange123!."
+
+# Accounts created on all Blue Team hosts.
+blue_shared_users:
+  - { name: "greyteam", password: "Hockey123!" }
+  - { name: "scoring", password: "Hockey123!" }
+  - { name: "cia", password: "ColdWar123!" }
+  - { name: "kgb", password: "ColdWar123!" }
+
+# Password applied to all Blue Team role-specific users.
+blue_team_user_password: "Change.me123!"
+

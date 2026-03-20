@@ -1,0 +1,76 @@
+- name: Create and manage Blue Team users on Linux
+  hosts: blue_linux
+  become: true
+  tasks:
+    - name: Ensure common users exist on all Blue Team Linux hosts
+      ansible.builtin.user:
+        name: "{{ item.name }}"
+        state: present
+        create_home: true
+        shell: /bin/bash
+        password: "{{ item.password | password_hash('sha512') }}"
+      loop: "{{ blue_shared_users }}"
+
+    - name: Ensure Blue Team admin users exist with sudo on Linux
+      ansible.builtin.user:
+        name: "{{ item }}"
+        state: present
+        create_home: true
+        shell: /bin/bash
+        password: "{{ blue_team_user_password | password_hash('sha512') }}"
+        groups: sudo
+        append: true
+      loop: "{{ blue_team_admin_users }}"
+
+    - name: Ensure Blue Team local users exist on Linux
+      ansible.builtin.user:
+        name: "{{ item }}"
+        state: present
+        create_home: true
+        shell: /bin/bash
+        password: "{{ blue_team_user_password | password_hash('sha512') }}"
+      loop: "{{ blue_team_local_users }}"
+
+    - name: Remove default cyberrange user from Linux
+      ansible.builtin.user:
+        name: "{{ bootstrap_user.username }}"
+        state: absent
+        remove: true
+
+- name: Create and manage Blue Team users on Windows
+  hosts: blue_windows
+  tasks:
+    - name: Ensure common users exist on all Blue Team Windows hosts
+      ansible.windows.win_user:
+        name: "{{ item.name }}"
+        password: "{{ item.password }}"
+        state: present
+        password_never_expires: true
+        account_disabled: false
+      loop: "{{ blue_shared_users }}"
+
+    - name: Ensure Blue Team admin users exist and are local administrators
+      ansible.windows.win_user:
+        name: "{{ item }}"
+        password: "{{ blue_team_user_password }}"
+        state: present
+        password_never_expires: true
+        account_disabled: false
+        groups:
+          - Administrators
+        groups_action: add
+      loop: "{{ blue_team_admin_users }}"
+
+    - name: Ensure Blue Team local users exist on Windows
+      ansible.windows.win_user:
+        name: "{{ item }}"
+        password: "{{ blue_team_user_password }}"
+        state: present
+        password_never_expires: true
+        account_disabled: false
+      loop: "{{ blue_team_local_users }}"
+
+    - name: Remove default cyberrange user from Windows
+      ansible.windows.win_user:
+        name: "{{ bootstrap_user.username }}"
+        state: absent
