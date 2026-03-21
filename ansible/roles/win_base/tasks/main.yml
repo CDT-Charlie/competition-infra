@@ -12,3 +12,79 @@
   ansible.windows.win_powershell:
     script: |
       Set-NetFirewallRule -DisplayGroup "File and Printer Sharing" -Enabled True
+
+- name: Enable Powershell Script Execution
+  win_shell: Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Force
+
+# Administrators are elevated silently instead of getting a UAC prompt for credentials
+- name: Disable UAC for Administrators Only
+  win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+    name: ConsentPromptBehaviorAdmin
+    data: 0  # elevates without prompting for Administrators
+    type: dword
+
+# Checks the local Windows group Remote Management Users exists
+- name: Ensure Remote Management Group Exists
+  ansible.windows.win_group:
+    name: "Remote Management Users"
+    state: present
+
+# Makes Remote Desktop allowed
+- name: Set fDenyTSConnections
+  ansible.windows.win_regedit:
+    path: HKLM:\System\CurrentControlSet\Control\Terminal Server
+    name: fDenyTSConnections
+    data: 0
+    type: dword
+    state: present
+
+# Sets another Terminal Services registry value, to keep Remote Desktop status/settings in sync
+- name: Set updateRDStatus
+  ansible.windows.win_regedit:
+    path: HKLM:\System\CurrentControlSet\Control\Terminal Server
+    name: updateRDStatus
+    data: 1
+    type: dword
+    state: present
+
+- name: Create RDP (TCP) Exception In Firewall (Windows > 7/2012)
+  community.windows.win_firewall_rule:
+    name: RDP
+    protocol: tcp
+    localport: 3389
+    action: allow
+    direction: in
+    state: present
+    profiles:
+    - domain
+    - private
+    - public
+    localip: any
+    remoteip: any
+    enabled: yes
+  when: ansible_distribution_major_version|int > 6
+
+- name: Create RDP (UDP) Exception in Firewall (Windows > 7/2012)
+  community.windows.win_firewall_rule:
+    name: RDP
+    protocol: udp
+    localport: 3389
+    action: allow
+    direction: in
+    state: present
+    profiles:
+    - domain
+    - private
+    - public
+    localip: any
+    remoteip: any
+    enabled: yes
+  when: ansible_distribution_major_version|int > 6
+
+# For older Windows versions, instead of creating explicit firewall rules, enables the built-in firewall rule group for Remote Desktop using netsh
+- name: Create RDP Exception in Firewall (<= Windows 7/2012)
+  ansible.windows.win_command: cmd.exe
+  args:
+    stdin: 'netsh advfirewall firewall set rule group="remote desktop" new enable=Yes'
+  when: ansible_distribution_major_version|int <= 6
