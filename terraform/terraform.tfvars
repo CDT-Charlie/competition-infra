@@ -17,7 +17,7 @@ instances = {
     image    = "Ubuntu2004Desktop"
   }
 
-  "blue1-triple-deke" = {
+ "blue1-triple-deke" = {
     network  = "blue1"
     ip       = "10.100.2.5"
     flavor   = "medium"
@@ -28,33 +28,40 @@ instances = {
     network  = "blue1"
     ip       = "10.100.2.6"
     flavor   = "medium"
-    image    = "Ubuntu2404Desktop"
+    image    = "Ubuntu2204Desktop"
   }
   
   "blue1-clapper" = {
     network  = "blue1"
     ip       = "10.100.2.7"
     flavor   = "medium"
-    image    = "Windows10"
+    image    = "Ubuntu2404Desktop"
+  }
+
+  "blue1-backcheck" = {
+    network  = "blue1"
+    ip       = "10.100.2.8"
+    flavor   = "medium"
+    image    = "Ubuntu2404Desktop"
   }
 
   "blue1-dump-n-chase" = {
     network  = "blue1"
-    ip       = "10.100.2.8"
+    ip       = "10.100.2.9"
     flavor   = "large"
     image    = "WindowsServer2016"
   }
 
   "blue1-snapshot" = {
     network  = "blue1"
-    ip       = "10.100.2.9"
+    ip       = "10.100.2.10"
     flavor   = "large"
     image    = "WindowsServer2019"
   }
 
   "blue1-bardown" = {
     network  = "blue1"
-    ip       = "10.100.2.10"
+    ip       = "10.100.2.11"
     flavor   = "large"
     image    = "WindowsServer2022"
   }
@@ -84,33 +91,40 @@ instances = {
     network  = "blue2"
     ip       = "10.100.3.6"
     flavor   = "medium"
-    image    = "Ubuntu2404Desktop"
+    image    = "Ubuntu2204Desktop"
   }
   
   "blue2-clapper" = {
     network  = "blue2"
     ip       = "10.100.3.7"
     flavor   = "medium"
-    image    = "Windows10"
+    image    = "Ubuntu2404Desktop"
+  }
+
+  "blue2-backcheck" = {
+    network  = "blue2"
+    ip       = "10.100.3.8"
+    flavor   = "medium"
+    image    = "Ubuntu2404Desktop"
   }
 
   "blue2-dump-n-chase" = {
     network  = "blue2"
-    ip       = "10.100.3.8"
+    ip       = "10.100.3.9"
     flavor   = "large"
     image    = "WindowsServer2016"
   }
 
   "blue2-snapshot" = {
     network  = "blue2"
-    ip       = "10.100.3.9"
+    ip       = "10.100.3.10"
     flavor   = "large"
     image    = "WindowsServer2019"
   }
 
   "blue2-bardown" = {
     network  = "blue2"
-    ip       = "10.100.3.10"
+    ip       = "10.100.3.11"
     flavor   = "large"
     image    = "WindowsServer2022"
   }
