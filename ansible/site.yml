@@ -1,38 +1,15 @@
 ---
-# Main site playbook for Cyber Competition Infrastructure
-# Deploys all services across Windows and Linux hosts
+# Main competition playbook
+# Deploys available scored services and Blue Team user accounts in one run.
+#
+# Alternative methods:
+# - Deploy everything: ansible-playbook -i inventory.yml site.yml
+# - Deploy one service: ansible-playbook -i inventory.yml site.yml --limit <group>
+# - Deploy only users:   ansible-playbook -i inventory.yml blue_team_users.yml
+#
+# Services intentionally commented out are planned but not yet implemented.
 
-# Windows Deployments
-- name: Deploy Windows Domain Controller with DNS
-  hosts: windows_dc
-  vars:
-    domain_name: "{{ windows_dc.domain_name }}"
-    netbios_name: "{{ windows_dc.netbios_name }}"
-    safe_mode_password: "{{ windows_dc.safe_mode_password }}"
-    dc_hostname: "{{ windows_dc.dc_hostname }}"
-    ou_name: "{{ windows_dc.ou_name }}"
-    group_name: "{{ windows_dc.group_name }}"
-    user_sam: "{{ windows_dc.domain_user.sam }}"
-    user_given: "{{ windows_dc.domain_user.given }}"
-    user_surname: "{{ windows_dc.domain_user.surname }}"
-    user_password: "{{ windows_dc.domain_user.password }}"
-  roles:
-    - win_base
-    - win_dc_dns
-
-- name: Deploy Windows LDAP + Kerberos Server
-  hosts: windows_ldap
-  vars:
-    domain_name: "{{ windows_dc.domain_name }}"
-    netbios_name: "{{ windows_dc.netbios_name }}"
-    safe_mode_password: "{{ windows_dc.safe_mode_password }}"
-    dc_hostname: "{{ windows_dc.dc_hostname }}"
-    join_domain: false
-  roles:
-    - win_base
-    - win_ldap_kerberos
-
-- name: Configure WinRM on Windows Hosts
+- name: Bootstrap Windows management (required before Windows service roles)
   hosts: windows
   vars:
     new_user: "{{ windows_winrm.ansible_user.username }}"
@@ -45,7 +22,7 @@
     - win_base
     - win_winrm
 
-- name: Deploy Windows SMB + FTP Server
+- name: Deploy Windows SMB scored service
   hosts: windows_fileserver
   vars:
     share_name: "{{ windows_smb_ftp.smb.share_name }}"
@@ -61,8 +38,7 @@
     - win_base
     - win_smb_ftp
 
-# Linux Deployments
-- name: Deploy Linux Web Stack (Nginx + MySQL)
+- name: Deploy Linux Nginx/MySQL stack scored service
   hosts: webservers
   become: yes
   roles:
@@ -85,8 +61,7 @@
   roles:
     - nix_base
     - nix_mail_server
-
-- name: Deploy Linux Monitoring (Grafana + Rsyslog Server)
+- name: Deploy Linux Grafana scored service
   hosts: monitoring_server
   become: yes
   vars:
@@ -100,13 +75,52 @@
     - nix_base
     - nix_monitoring
 
-- name: Deploy Linux Monitoring Clients (rsyslog Client)
-  hosts: monitoring_clients
+- name: Deploy Linux rsyslog scored service (central)
+  hosts: syslog_central
+  become: yes
+  vars:
+    rsyslog_mode: "server"
+  roles:
+    - nix_base
+    - nix_monitoring
+
+- name: Configure Linux rsyslog forwarding clients
+  hosts: "blue_linux:!syslog_central"
   become: yes
   vars:
     rsyslog_mode: "client"
   roles:
     - nix_base
     - nix_monitoring
+
+# DNS role currently maps to win_dc_dns (AD DS + DNS). Enabled because role exists.
+- name: Deploy Windows DNS scored service
+  hosts: windows_dc
+  vars:
+    domain_name: "{{ windows_dc.domain_name }}"
+    netbios_name: "{{ windows_dc.netbios_name }}"
+    safe_mode_password: "{{ windows_dc.safe_mode_password }}"
+    # Defaults to inventory name (e.g. blue1-bardown) so each DC keeps a unique hostname.
+    dc_hostname: "{{ default(inventory_hostname) }}"
+    ou_name: "{{ windows_dc.ou_name }}"
+    group_name: "{{ windows_dc.group_name }}"
+    deployment_team: >-
+      {{
+        dc_team
+        if (windows_dc_deployment_team | default(windows_dc.deployment_team | default('host_team'))) == 'host_team'
+        else (windows_dc_deployment_team | default(windows_dc.deployment_team))
+      }}
+  roles:
+    - win_base
+    - win_dc_dns
+
+# - name: Deploy Linux MCP scored service
+#   hosts: mcp_hosts
+#   become: yes
+#   # TODO: enable when MCP server role/playbook exists.
+#
+# - name: Deploy Windows IIS scored service
+#   hosts: windows_iis
+#   # TODO: enable when IIS role/playbook exists.
 
 - import_playbook: blue_team_users.yml

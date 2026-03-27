@@ -9,7 +9,7 @@ admin_def_passwd: "ChangeThisImmediately!"
 # "Bootstrap" account used before competition user provisioning.
 bootstrap_user:
   username: "cyberrange"
-  password: "Cyberrange123!."
+  password: "Cyberrange123!"
 
 # Accounts created on all Blue Team hosts.
 blue_shared_users:

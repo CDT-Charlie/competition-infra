@@ -14,3 +14,18 @@ blue_team_local_users:
   - krutov
   - lebedev
   - vasiliev
+
+windows_domain_team_users:
+  - { sam: "tikhonov", given: "Viktor", surname: "Tikhonov", password: "Change.me123!", is_admin: true }
+  - { sam: "kulagin", given: "Boris", surname: "Kulagin", password: "Change.me123!", is_admin: true }
+  - { sam: "brezhnev", given: "Leonid", surname: "Brezhnev", password: "Change.me123!", is_admin: true }
+  - { sam: "tretiak", given: "Vladislav", surname: "Tretiak", password: "Change.me123!", is_admin: true }
+  - { sam: "larionov", given: "Igor", surname: "Larionov", password: "Change.me123!", is_admin: true }
+  - { sam: "zhukov", given: "Georgy", surname: "Zhukov", password: "Change.me123!", is_admin: false }
+  - { sam: "gusev", given: "Alexei", surname: "Gusev", password: "Change.me123!", is_admin: false }
+  - { sam: "makarov", given: "Sergei", surname: "Makarov", password: "Change.me123!", is_admin: false }
+  - { sam: "fetisov", given: "Viacheslav", surname: "Fetisov", password: "Change.me123!", is_admin: false }
+  - { sam: "kasatonov", given: "Alexei", surname: "Kasatonov", password: "Change.me123!", is_admin: false }
+  - { sam: "krutov", given: "Vladimir", surname: "Krutov", password: "Change.me123!", is_admin: false }
+  - { sam: "lebedev", given: "Valery", surname: "Lebedev", password: "Change.me123!", is_admin: false }
+  - { sam: "vasiliev", given: "Sergei", surname: "Vasiliev", password: "Change.me123!", is_admin: false }

@@ -1,6 +1,6 @@
 ---
 # Windows Domain Controller + DNS Role
-# Installs AD DS, DNS, creates domain, OU, group, and user
+# Installs AD DS/DNS, creates domain, provisions team users, and creates DNS A records.
 
 - name: Set DC hostname
   ansible.windows.win_hostname:
@@ -46,31 +46,82 @@
     msg: "Rebooting after domain creation / DC promotion"
   when: domain_create.reboot_required | default(true)
 
+- name: Set deployment team for this DC host
+  ansible.builtin.set_fact:
+    selected_team: "{{ deployment_team | default(dc_team) }}"
+
+- name: Build domain DN path
+  ansible.builtin.set_fact:
+    domain_dn: "DC={{ (domain_name | trim).split('.') | join(',DC=') }}"
+
 - name: Create OU
   microsoft.ad.ou:
     name: "{{ ou_name }}"
-    path: "DC={{ (domain_name | trim).split('.') | join(',DC=') }}"
+    path: "{{ domain_dn }}"
     state: present
 
 - name: Create group in OU
   microsoft.ad.group:
     name: "{{ group_name }}"
-    path: "OU={{ ou_name }},DC={{ domain_name.split('.') | join(',DC=') }}"
+    path: "OU={{ ou_name }},{{ domain_dn }}"
     scope: global
     state: present
 
-- name: Create user in OU
+- name: Build effective domain user list
+  ansible.builtin.set_fact:
+    effective_domain_users: >-
+      {{
+        windows_domain_common_users +
+        (
+          windows_domain_team_users
+          if selected_team == 'all' or selected_team == dc_team
+          else []
+        )
+      }}
+
+- name: Create domain users in OU
   microsoft.ad.user:
-    name: "{{ user_sam }}"
-    firstname: "{{ user_given }}"
-    lastname: "{{ user_surname }}"
-    password: "{{ user_password }}"
-    path: "OU={{ ou_name }},DC={{ domain_name.split('.') | join(',DC=') }}"
+    name: "{{ item.sam }}"
+    firstname: "{{ item.given }}"
+    lastname: "{{ item.surname }}"
+    password: "{{ item.password }}"
+    path: "OU={{ ou_name }},{{ domain_dn }}"
     enabled: true
     state: present
+  loop: "{{ effective_domain_users }}"
 
-- name: Add user to group
+- name: Add admin domain users to BlueTeamAdmins group
   ansible.windows.win_powershell:
     script: |
       Import-Module ActiveDirectory
-      Add-ADGroupMember -Identity "{{ group_name }}" -Members "{{ user_sam }}" -ErrorAction SilentlyContinue
+      Add-ADGroupMember -Identity "{{ group_name }}" -Members "{{ item.sam }}" -ErrorAction SilentlyContinue
+  loop: "{{ effective_domain_users | selectattr('is_admin', 'equalto', true) | list }}"
+
+- name: Build effective DNS A record list
+  ansible.builtin.set_fact:
+    effective_dns_records: >-
+      {{
+        (
+          windows_dc.dns_records.blue_team_1 + windows_dc.dns_records.blue_team_2
+        )
+        if selected_team == 'all'
+        else windows_dc.dns_records[selected_team]
+      }}
+
+- name: Create DNS A records for deployment hosts
+  ansible.windows.win_powershell:
+    script: |
+      $zone = "{{ domain_name }}"
+      $recordName = "{{ item.name }}"
+      $recordIP = "{{ item.ip }}"
+      $existing = Get-DnsServerResourceRecord -ZoneName $zone -Name $recordName -RRType "A" -ErrorAction SilentlyContinue
+      if (-not $existing) {
+        Add-DnsServerResourceRecordA -Name $recordName -ZoneName $zone -IPv4Address $recordIP -CreatePtr:$false
+      } else {
+        $currentIPs = @($existing.RecordData | ForEach-Object { $_.IPv4Address.ToString() })
+        if ($currentIPs -notcontains $recordIP) {
+          Remove-DnsServerResourceRecord -ZoneName $zone -Name $recordName -RRType "A" -Force -ErrorAction SilentlyContinue
+          Add-DnsServerResourceRecordA -Name $recordName -ZoneName $zone -IPv4Address $recordIP -CreatePtr:$false
+        }
+      }
+  loop: "{{ effective_dns_records }}"

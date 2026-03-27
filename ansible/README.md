@@ -2,27 +2,6 @@
 
 This directory contains Ansible playbooks and roles for deploying cyber competition infrastructure across Windows and Linux systems.
 
-## Structure
-
-```
-ansible/
-├── site.yml                    # Main playbook - deploys all services
-├── group_vars/                 # Centralized variables
-│   ├── all.yml                # Common variables for all hosts
-│   ├── windows.yml            # Windows-specific variables
-│   └── linux.yml              # Linux-specific variables
-└── roles/                      # Ansible roles
-    ├── win_base/              # Base Windows setup
-    ├── win_dc_dns/            # Windows Domain Controller + DNS
-    ├── win_ldap_kerberos/     # Windows LDAP + Kerberos (AD DS)
-    ├── win_winrm/             # Windows WinRM configuration
-    ├── win_smb_ftp/           # Windows SMB file share + FTP server
-    ├── nix_base/              # Base Linux setup
-    ├── nix_web_stack/         # Nginx + MySQL web stack (Docker)
-    ├── nix_mail_server/       # Postfix + Dovecot mail server
-    └── nix_monitoring/        # Grafana + rsyslog monitoring
-```
-
 ## Role Structure
 
 All roles follow a simplified structure with only two directories:
@@ -33,8 +12,6 @@ role_name/
 │   └── main.yml      # All tasks for the role
 └── files/            # Static files (if needed)
 ```
-
-**No templates, defaults, or handlers folders** - keeping the structure simple and uniform.
 
 ## Quick Start
 
@@ -84,17 +61,50 @@ ansible-playbook -i inventory.yml site.yml
 
 `inventory.yml` is the primary Blue Team competition inventory (including user provisioning and bootstrap user removal).
 
+`site.yml` defaults Domain Controller deployment scope to each DC host's own team (`dc_team`), so no extra argument is required for normal runs.
+
+Optional override for DC/DNS scope:
+```bash
+# Team 1 only
+ansible-playbook -i inventory.yml site.yml -e windows_dc_deployment_team=blue_team_1
+
+# Team 2 only
+ansible-playbook -i inventory.yml site.yml -e windows_dc_deployment_team=blue_team_2
+```
+
 ### Deploy Specific Service
 
 ```bash
-# Windows Domain Controller
+# Windows bootstrap (WinRM/base)
+ansible-playbook -i inventory.yml site.yml --limit windows
+
+# Windows Domain Controller / DNS
 ansible-playbook -i inventory.yml site.yml --limit windows_dc
 
-# Linux Web Stack
+# Windows SMB service
+ansible-playbook -i inventory.yml site.yml --limit windows_fileserver
+
+# Linux Web Stack (Nginx/MySQL stack role)
 ansible-playbook -i inventory.yml site.yml --limit webservers
 
-# Linux Mail Server
-ansible-playbook -i inventory.yml site.yml --limit mail
+# Linux Grafana service
+ansible-playbook -i inventory.yml site.yml --limit monitoring_server
+
+# Linux rsyslog central service
+ansible-playbook -i inventory.yml site.yml --limit syslog_central
+
+# Users only
+ansible-playbook -i inventory.yml blue_team_users.yml
+```
+
+### Standalone Role Playbook
+
+```bash
+# Domain Controller + DNS role wrapper
+ansible-playbook -i inventory.yml roles/win_dc_dns/deploy_dc.yml
+
+# Domain Controller + DNS role wrapper (team specific)
+ansible-playbook -i inventory.yml roles/win_dc_dns/deploy_dc.yml -e windows_dc_deployment_team=blue_team_1
 ```
 
 ## Roles Overview
@@ -186,7 +196,7 @@ ansible-playbook -i inventory.yml site.yml --limit mail
 - `files/index.php` - Web application
 - `files/init.sql` - Database initialization script
 
-#### `nix_mail_server`
+#### `nix_mail`
 **Purpose:** Deploy Postfix + Dovecot mail server  
 **Deploys:**
 - Postfix (SMTP server)
@@ -212,7 +222,8 @@ ansible-playbook -i inventory.yml site.yml --limit mail
 
 **Inventory Groups:**
 - `monitoring_server` - Server mode (receives logs)
-- `monitoring_clients` - Client mode (forwards logs)
+- `syslog_central` - Dedicated rsyslog server hosts
+- `blue_linux:!syslog_central` - rsyslog forwarding clients
 
 **Configuration:**
 - Set `rsyslog_mode: "server"` for server mode
@@ -268,15 +279,16 @@ Recommended inventory groups:
 
 ### Windows
 - `windows_dc` - Domain Controllers
-- `windows_ldap` - LDAP/Kerberos servers
 - `windows_fileserver` - SMB/FTP servers
 - `windows` - General Windows hosts (WinRM)
+- `windows_iis` - Reserved group for future IIS role
 
 ### Linux
+- `mcp_hosts` - Reserved group for future MCP role
 - `webservers` - Web stack hosts
 - `mail` - Mail servers
-- `monitoring_server` - Monitoring server (rsyslog server mode)
-- `monitoring_clients` - Monitoring clients (rsyslog client mode)
+- `monitoring_server` - Grafana hosts
+- `syslog_central` - rsyslog central servers
 
 ## Testing
 

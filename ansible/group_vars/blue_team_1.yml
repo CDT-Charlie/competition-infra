@@ -14,3 +14,18 @@ blue_team_local_users:
   - dave_christian
   - buzz_schneider
   - bob_suter
+
+windows_domain_team_users:
+  - { sam: "herb_brooks", given: "Herb", surname: "Brooks", password: "Change.me123!", is_admin: true }
+  - { sam: "craig_patrick", given: "Craig", surname: "Patrick", password: "Change.me123!", is_admin: true }
+  - { sam: "jimmy_carter", given: "Jimmy", surname: "Carter", password: "Change.me123!", is_admin: true }
+  - { sam: "eruzione", given: "Eruzione", surname: "Coach", password: "Change.me123!", is_admin: true }
+  - { sam: "jim_craig", given: "Jim", surname: "Craig", password: "Change.me123!", is_admin: true }
+  - { sam: "rob_mclanahan", given: "Rob", surname: "McLanahan", password: "Change.me123!", is_admin: false }
+  - { sam: "mark_johnson", given: "Mark", surname: "Johnson", password: "Change.me123!", is_admin: false }
+  - { sam: "ken_morrow", given: "Ken", surname: "Morrow", password: "Change.me123!", is_admin: false }
+  - { sam: "dave_silk", given: "Dave", surname: "Silk", password: "Change.me123!", is_admin: false }
+  - { sam: "jack_oh_callahan", given: "Jack", surname: "OCallahan", password: "Change.me123!", is_admin: false }
+  - { sam: "dave_christian", given: "Dave", surname: "Christian", password: "Change.me123!", is_admin: false }
+  - { sam: "buzz_schneider", given: "Buzz", surname: "Schneider", password: "Change.me123!", is_admin: false }
+  - { sam: "bob_suter", given: "Bob", surname: "Suter", password: "Change.me123!", is_admin: false }

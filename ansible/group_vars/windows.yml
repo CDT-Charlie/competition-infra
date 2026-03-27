@@ -3,17 +3,33 @@
 
 # Windows Domain Controller + DNS
 windows_dc:
-  domain_name: "hockey.cdtcharlie.com"
-  netbios_name: "HOCKEY1"
+  domain_name: "lakeplacid.local"
+  netbios_name: "LAKEPLACID"
   safe_mode_password: "Password123!"
-  dc_hostname: "DC1"
   ou_name: "GreyTeam"
   group_name: "BlueTeamAdmins"
-  domain_user:
-    sam: "alice"
-    given: "Alice"
-    surname: "Operator"
-    password: "ChangeMe_User123!"
+  deployment_team: "host_team"
+  dns_records:
+    blue_team_1:
+      - { name: "blue1-cross-check", ip: "10.100.2.3" }
+      - { name: "blue1-hat-trick", ip: "10.100.2.4" }
+      - { name: "blue1-triple-deke", ip: "10.100.2.5" }
+      - { name: "blue1-toe-drag", ip: "10.100.2.6" }
+      - { name: "blue1-clapper", ip: "10.100.2.7" }
+      - { name: "blue1-backcheck", ip: "10.100.2.8" }
+      - { name: "blue1-dump-n-chase", ip: "10.100.2.9" }
+      - { name: "blue1-snapshot", ip: "10.100.2.10" }
+      - { name: "blue1-bardown", ip: "10.100.2.11" }
+    blue_team_2:
+      - { name: "blue2-cross-check", ip: "10.100.3.3" }
+      - { name: "blue2-hat-trick", ip: "10.100.3.4" }
+      - { name: "blue2-triple-deke", ip: "10.100.3.5" }
+      - { name: "blue2-toe-drag", ip: "10.100.3.6" }
+      - { name: "blue2-clapper", ip: "10.100.3.7" }
+      - { name: "blue2-backcheck", ip: "10.100.3.8" }
+      - { name: "blue2-dump-n-chase", ip: "10.100.3.9" }
+      - { name: "blue2-snapshot", ip: "10.100.3.10" }
+      - { name: "blue2-bardown", ip: "10.100.3.11" }
 
 # Windows SMB + FTP
 windows_smb_ftp:
@@ -41,3 +57,10 @@ windows_winrm:
       CSEC-473 HW2 - Made by Ansible :)
       Host: {{ inventory_hostname }}
   monitored_service: "wuauserv"
+
+# Domain users provisioned on both Domain Controllers.
+windows_domain_common_users:
+  - { sam: "greyteam", given: "Grey", surname: "Team", password: "Hockey123!", is_admin: false }
+  - { sam: "scoring", given: "Scoring", surname: "Service", password: "Hockey123!", is_admin: false }
+  - { sam: "cia", given: "Central", surname: "Intelligence", password: "ColdWar123!", is_admin: false }
+  - { sam: "kgb", given: "Komitet", surname: "Gosbezopasnosti", password: "ColdWar123!", is_admin: false }

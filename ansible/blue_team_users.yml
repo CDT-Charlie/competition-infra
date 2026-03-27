@@ -74,3 +74,10 @@
       ansible.windows.win_user:
         name: "{{ bootstrap_user.username }}"
         state: absent
+        remove: true
+
+    - name: Remove ansible user from script
+      ansible.windows.win_user:
+        name: "{{ ansible_user }}"
+        state: absent
+        remove: true

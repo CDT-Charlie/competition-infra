@@ -12,16 +12,18 @@ all:
               ansible_host: 10.100.2.5
             blue1-toe-drag:
               ansible_host: 10.100.2.6
-        blue_team_1_windows:
-          hosts:
             blue1-clapper:
               ansible_host: 10.100.2.7
-            blue1-dump-n-chase:
+            blue1-backcheck:
               ansible_host: 10.100.2.8
-            blue1-snapshot:
+        blue_team_1_windows:
+          hosts:
+            blue1-dump-n-chase:
               ansible_host: 10.100.2.9
-            blue1-bardown:
+            blue1-snapshot:
               ansible_host: 10.100.2.10
+            blue1-bardown:
+              ansible_host: 10.100.2.11
 
     blue_team_2:
       children:
@@ -35,16 +37,18 @@ all:
               ansible_host: 10.100.3.5
             blue2-toe-drag:
               ansible_host: 10.100.3.6
-        blue_team_2_windows:
-          hosts:
             blue2-clapper:
               ansible_host: 10.100.3.7
-            blue2-dump-n-chase:
+            blue2-backcheck:
               ansible_host: 10.100.3.8
-            blue2-snapshot:
+        blue_team_2_windows:
+          hosts:
+            blue2-dump-n-chase:
               ansible_host: 10.100.3.9
-            blue2-bardown:
+            blue2-snapshot:
               ansible_host: 10.100.3.10
+            blue2-bardown:
+              ansible_host: 10.100.3.11
 
     blue_linux:
       children:
@@ -55,3 +59,55 @@ all:
       children:
         blue_team_1_windows:
         blue_team_2_windows:
+
+    # Service-oriented groups (used by the main competition playbook).
+    mcp_hosts:
+      hosts:
+        blue1-cross-check:
+        blue2-cross-check:
+
+    webservers:
+      hosts:
+        blue1-hat-trick:
+        blue2-hat-trick:
+
+    mysql_hosts:
+      hosts:
+        blue1-triple-deke:
+        blue2-triple-deke:
+
+    mail:
+      hosts:
+        blue1-toe-drag:
+        blue2-toe-drag:
+
+    monitoring_server:
+      hosts:
+        blue1-clapper:
+        blue2-clapper:
+
+    syslog_central:
+      hosts:
+        blue1-backcheck:
+        blue2-backcheck:
+
+    windows_fileserver:
+      hosts:
+        blue1-dump-n-chase:
+        blue2-dump-n-chase:
+
+    windows_iis:
+      hosts:
+        blue1-snapshot:
+        blue2-snapshot:
+
+    windows_dc:
+      hosts:
+        blue1-bardown:
+          dc_team: blue_team_1
+        blue2-bardown:
+          dc_team: blue_team_2
+
+    windows:
+      children:
+        blue_windows:
