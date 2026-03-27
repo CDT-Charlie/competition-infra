@@ -60,7 +60,7 @@
     pf_allowed_networks: "{{ mail_server.postfix.allowed_networks }}"
   roles:
     - nix_base
-    - nix_mail_server
+    - nix_mail
 - name: Deploy Linux Grafana scored service
   hosts: monitoring_server
   become: yes
@@ -101,7 +101,7 @@
     netbios_name: "{{ windows_dc.netbios_name }}"
     safe_mode_password: "{{ windows_dc.safe_mode_password }}"
     # Defaults to inventory name (e.g. blue1-bardown) so each DC keeps a unique hostname.
-    dc_hostname: "{{ default(inventory_hostname) }}"
+    dc_hostname: "{{ windows_dc.dc_hostname | default(inventory_hostname) }}"
     ou_name: "{{ windows_dc.ou_name }}"
     group_name: "{{ windows_dc.group_name }}"
     deployment_team: >-

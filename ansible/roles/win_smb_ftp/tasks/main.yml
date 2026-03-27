@@ -55,7 +55,7 @@
 - name: Install FTP Components (OS Check)
   block:
     - name: Install for Server Editions (2019/2022)
-      community.windows.win_feature:
+      ansible.windows.win_feature:
         name:
           - Web-Server
           - Web-FTP-Server
@@ -64,7 +64,7 @@
       when: ansible_windows_product_type == "Server"
 
     - name: Install for Desktop Editions (7/10)
-      community.windows.win_optional_feature:
+      ansible.windows.win_optional_feature:
         name:
           - IIS-WebServerRole
           - IIS-FTPServer
