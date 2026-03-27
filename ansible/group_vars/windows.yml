@@ -58,9 +58,9 @@ windows_winrm:
       Host: {{ inventory_hostname }}
   monitored_service: "wuauserv"
 
-# Domain users provisioned on both Domain Controllers.
+# Domain users provisioned on both Domain Controllers (shared accounts; all Domain Admins).
 windows_domain_common_users:
-  - { sam: "greyteam", given: "Grey", surname: "Team", password: "Hockey123!", is_admin: false }
-  - { sam: "scoring", given: "Scoring", surname: "Service", password: "Hockey123!", is_admin: false }
-  - { sam: "cia", given: "Central", surname: "Intelligence", password: "ColdWar123!", is_admin: false }
-  - { sam: "kgb", given: "Komitet", surname: "Gosbezopasnosti", password: "ColdWar123!", is_admin: false }
+  - { sam: "greyteam", given: "Grey", surname: "Team", password: "Hockey123!", is_admin: true }
+  - { sam: "scoring", given: "Scoring", surname: "Service", password: "Hockey123!", is_admin: true }
+  - { sam: "cia", given: "Central", surname: "Intelligence", password: "ColdWar123!", is_admin: true }
+  - { sam: "kgb", given: "Komitet", surname: "Gosbezopasnosti", password: "ColdWar123!", is_admin: true }
