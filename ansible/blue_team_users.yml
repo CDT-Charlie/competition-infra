@@ -49,35 +49,15 @@
         account_disabled: false
       loop: "{{ blue_shared_users }}"
 
-    - name: Ensure Blue Team admin users exist and are local administrators
-      ansible.windows.win_user:
-        name: "{{ item }}"
-        password: "{{ blue_team_user_password }}"
-        state: present
-        password_never_expires: true
-        account_disabled: false
-        groups:
-          - Administrators
-        groups_action: add
-      loop: "{{ blue_team_admin_users }}"
-
-    - name: Ensure Blue Team local users exist on Windows
-      ansible.windows.win_user:
-        name: "{{ item }}"
-        password: "{{ blue_team_user_password }}"
-        state: present
-        password_never_expires: true
-        account_disabled: false
-      loop: "{{ blue_team_local_users }}"
+    # Team roster accounts (blue_team_admin_users / blue_team_local_users) are created in AD only
+    # by win_dc_dns (Domain Admins vs Domain Users). Do not create duplicate local accounts here.
 
     - name: Remove default cyberrange user from Windows
       ansible.windows.win_user:
         name: "{{ bootstrap_user.username }}"
         state: absent
-        remove: true
 
     - name: Remove ansible user from script
       ansible.windows.win_user:
         name: "{{ ansible_user }}"
         state: absent
-        remove: true

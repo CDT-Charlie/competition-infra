@@ -6,7 +6,7 @@ The role now:
 2. Creates or ensures the `lakeplacid.local` domain
 3. Creates the competition OU and security group
 4. Creates all required domain users (shared + team-specific)
-5. Adds admin-designated domain users to `BlueTeamAdmins`
+5. Adds admin-designated domain users (`is_admin: true` in `windows_domain_team_users`) to **Domain Admins**
 6. Creates DNS A records for team hosts based on selected deployment scope
 
 ### Control Machine

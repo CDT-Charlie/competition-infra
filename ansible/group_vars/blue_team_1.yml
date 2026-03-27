@@ -15,6 +15,7 @@ blue_team_local_users:
   - buzz_schneider
   - bob_suter
 
+# AD users provisioned on the team DC. is_admin: true -> Domain Admins; false -> standard domain user (Domain Users).
 windows_domain_team_users:
   - { sam: "herb_brooks", given: "Herb", surname: "Brooks", password: "Change.me123!", is_admin: true }
   - { sam: "craig_patrick", given: "Craig", surname: "Patrick", password: "Change.me123!", is_admin: true }

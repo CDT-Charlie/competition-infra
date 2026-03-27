@@ -90,11 +90,11 @@
     state: present
   loop: "{{ effective_domain_users }}"
 
-- name: Add admin domain users to BlueTeamAdmins group
+- name: Add privileged domain users to Domain Admins
   ansible.windows.win_powershell:
     script: |
       Import-Module ActiveDirectory
-      Add-ADGroupMember -Identity "{{ group_name }}" -Members "{{ item.sam }}" -ErrorAction SilentlyContinue
+      Add-ADGroupMember -Identity "Domain Admins" -Members "{{ item.sam }}" -ErrorAction SilentlyContinue
   loop: "{{ effective_domain_users | selectattr('is_admin', 'equalto', true) | list }}"
 
 - name: Build effective DNS A record list

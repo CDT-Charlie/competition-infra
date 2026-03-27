@@ -2,6 +2,7 @@ resource "openstack_networking_port_v2" "instance_ports" {
   for_each   = var.instances
   name       = "${each.key}-port"
   network_id = local.networks[each.value.network].network_id
+  security_group_ids = ["e3429d61-1a47-4a39-b1c0-e42c647b2a22"]
 
   fixed_ip {
     subnet_id  = local.networks[each.value.network].subnet_id

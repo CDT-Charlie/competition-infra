@@ -125,7 +125,7 @@ ansible-playbook -i inventory.yml roles/win_dc_dns/deploy_dc.yml -e windows_dc_d
 - Active Directory Domain Services (AD DS)
 - DNS Server
 - Creates new domain
-- Creates OU, security group, and domain user
+- Creates OU, optional custom group (`BlueTeamAdmins`), and domain users; privileged roster users go to **Domain Admins**
 
 **Variables:** See `group_vars/windows.yml` → `windows_dc`
 

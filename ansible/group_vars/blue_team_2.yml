@@ -15,6 +15,7 @@ blue_team_local_users:
   - lebedev
   - vasiliev
 
+# AD users provisioned on the team DC. is_admin: true -> Domain Admins; false -> standard domain user (Domain Users).
 windows_domain_team_users:
   - { sam: "tikhonov", given: "Viktor", surname: "Tikhonov", password: "Change.me123!", is_admin: true }
   - { sam: "kulagin", given: "Boris", surname: "Kulagin", password: "Change.me123!", is_admin: true }
