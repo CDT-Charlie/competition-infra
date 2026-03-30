@@ -30,15 +30,18 @@
     enabled: true
   failed_when: false
 
-- name: Wait for directory services on team DC (helps after DC playbook)
+- name: Wait for required AD service ports on team DC
   ansible.builtin.wait_for:
     host: "{{ team_domain_controller_ip }}"
-    port: 389
+    port: "{{ item }}"
     timeout: 300
     delay: 3
     state: started
+  loop:
+    - 53
+    - 88
+    - 389
   when: ad_domain | lower not in (nix_realm_list.stdout | default('') | lower)
-  ignore_errors: true
 
 - name: Detect default IPv4 egress interface
   ansible.builtin.shell: |
@@ -92,13 +95,28 @@
   failed_when: false
   changed_when: nix_dns_nm.rc == 0
 
-- name: Join system to Active Directory domain
+- name: Join system to Active Directory domain (try common principal formats)
   ansible.builtin.shell: |
     set -euo pipefail
-    printf '%s\n' '{{ ad_domain_join.password }}' | realm join -U {{ ad_domain_join.username | quote }} {{ ad_domain | quote }}
+    realm_name='{{ ad_domain }}'
+    password='{{ ad_domain_join.password }}'
+    u1='{{ ad_domain_join.username }}'
+    u2='{{ ad_domain_join.username }}@{{ ad_domain }}'
+    err="$(mktemp)"
+
+    for u in "$u1" "$u2"; do
+      if printf '%s\n' "$password" | realm join -U "$u" "$realm_name" 2>"$err"; then
+        echo "joined_with=$u"
+        exit 0
+      fi
+    done
+
+    echo "realm join failed for both principal formats: $u1 and $u2" >&2
+    cat "$err" >&2 || true
+    exit 1
   args:
     executable: /bin/bash
-  no_log: true
+  no_log: "{{ not (nix_ad_join_debug | default(false) | bool) }}"
   when: ad_domain | lower not in (nix_realm_list.stdout | default('') | lower)
   register: nix_realm_join
 
