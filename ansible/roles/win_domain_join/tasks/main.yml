@@ -1,6 +1,8 @@
 ---
 # Join Windows Server member to AD (2016 / 2019 / 2022). Run after team DC exists.
 # Requires: team_domain_controller_ip, ad_domain, ad_domain_join, windows_dc.netbios_name, microsoft.ad collection
+# After joining, team admin users are added to local Administrators and all team users
+# to Remote Desktop Users so they can access this Windows member the same way they can Linux.
 
 - name: Join Windows Server to Active Directory
   when: windows_ad_domain_join | default(false)
@@ -33,3 +35,25 @@
         domain_server: "{{ team_domain_controller }}.{{ ad_domain }}"
         state: domain
         reboot: true
+
+- name: Add team admin domain accounts to local Administrators on Windows members
+  when: windows_ad_domain_join | default(false)
+  ansible.windows.win_group_membership:
+    name: Administrators
+    members: "{{ ([windows_dc.netbios_name + '\\' + item.sam]) }}"
+    state: present
+  loop: "{{ windows_domain_team_users | default([]) | selectattr('is_admin', 'equalto', true) | list }}"
+  loop_control:
+    label: "{{ item.sam }}"
+  failed_when: false
+
+- name: Add all team domain accounts to Remote Desktop Users on Windows members
+  when: windows_ad_domain_join | default(false)
+  ansible.windows.win_group_membership:
+    name: Remote Desktop Users
+    members: "{{ ([windows_dc.netbios_name + '\\' + item.sam]) }}"
+    state: present
+  loop: "{{ windows_domain_team_users | default([]) }}"
+  loop_control:
+    label: "{{ item.sam }}"
+  failed_when: false

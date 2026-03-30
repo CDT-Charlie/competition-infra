@@ -341,6 +341,29 @@
       %Domain\ Admins@{{ ad_domain }} ALL=(ALL:ALL) ALL
     validate: "/usr/sbin/visudo -cf %s"
 
+# --- realm permit: authorise team domain users to log into this Linux host ---
+# Combines admin users + standard users from team group_vars, plus shared accounts.
+# realm permit --realm resets the permit list; runs even on re-runs (idempotent).
+- name: Build full team user list for realm permit
+  ansible.builtin.set_fact:
+    nix_realm_permit_users: >-
+      {{
+        (blue_team_admin_users | default([]))
+        + (blue_team_local_users | default([]))
+        + (blue_shared_users | default([]) | map(attribute='name') | list)
+      }}
+  when: nix_ad_domain_join | default(false)
+
+- name: Permit team domain users to log into this host via realm
+  ansible.builtin.command:
+    argv: "{{ ['realm', 'permit', '--realm', ad_domain] + nix_realm_permit_users }}"
+  register: nix_realm_permit
+  changed_when: nix_realm_permit.rc == 0
+  failed_when: nix_realm_permit.rc != 0
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_realm_permit_users | default([]) | length > 0
+
 - name: Restart SSSD after domain join
   ansible.builtin.service:
     name: sssd
