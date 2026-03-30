@@ -1,9 +1,9 @@
 ---
 # realmd/sssd AD join — Ubuntu 20.04 / 22.04 / 24.04 (desktop and server).
-# Goals:
-# - Preserve existing OpenStack DNS while prioritizing team DC for AD lookups.
-# - Validate DNS/SRV/TCP/discovery before join with actionable failures.
-# - Use explicit team DC for discovery/join (no public DNS fallback).
+# OpenStack lab requirements:
+# - Keep OpenStack DNS working (openstacklocal / apt mirrors)
+# - Route lakeplacid.local to team DC using split DNS
+# - Prefer strict per-DC targeting (adcli)
 
 - name: Install packages for AD domain join
   ansible.builtin.apt:
@@ -19,7 +19,7 @@
       - krb5-user
       - ldap-utils
       - dnsutils
-      - netcat-openbsd
+      - network-manager
     state: present
 
 - name: Check current realm membership
@@ -55,101 +55,79 @@
           Fix host networking first, then rerun.
       when: nix_default_iface.stdout | default('') | trim | length == 0
 
-    - name: Read per-link DNS resolvers from systemd-resolved
+    - name: Discover DNS via nmcli (preferred source)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        nmcli -g IP4.DNS device show "{{ nix_default_iface.stdout | trim }}" 2>/dev/null || true
+      args:
+        executable: /bin/bash
+      register: nix_nmcli_dns
+      changed_when: false
+      failed_when: false
+
+    - name: Discover DNS via resolvectl per-link (fallback source)
       ansible.builtin.shell: |
         set -euo pipefail
         resolvectl dns "{{ nix_default_iface.stdout | trim }}" 2>/dev/null | sed -E 's/.*: *//' | tr ' ' '\n' | sed '/^$/d' || true
       args:
         executable: /bin/bash
-      register: nix_link_resolvers
+      register: nix_resolved_dns
       changed_when: false
       failed_when: false
 
-    - name: Build split-DNS resolver order (team DC first; preserve OpenStack DNS)
+    - name: Build upstream resolver list in required order
       ansible.builtin.set_fact:
-        nix_upstream_resolvers: "{{ (openstack_dns_servers | default([])) if ((openstack_dns_servers | default([])) | length > 0) else (nix_link_resolvers.stdout_lines | default([])) }}"
-        nix_ad_resolvers: "{{ [team_domain_controller_ip] + ((openstack_dns_servers | default([])) if ((openstack_dns_servers | default([])) | length > 0) else (nix_link_resolvers.stdout_lines | default([]))) | unique }}"
+        nix_upstream_resolvers: >-
+          {{
+            (
+              (openstack_dns_servers | default([]))
+              + (nix_nmcli_dns.stdout_lines | default([]) | map('trim') | reject('equalto', '') | reject('equalto', '127.0.0.53') | list)
+              + (nix_resolved_dns.stdout_lines | default([]) | map('trim') | reject('equalto', '') | reject('equalto', '127.0.0.53') | list)
+            ) | unique
+          }}
+        nix_ad_resolvers: "{{ ([team_domain_controller_ip] + nix_upstream_resolvers) | unique }}"
 
-    - name: Fail if no upstream OpenStack/per-link DNS resolvers are available
-      ansible.builtin.fail:
-        msg: >-
-          [Preflight: DNS upstream] No upstream resolvers found for split DNS.
-          Set openstack_dns_servers (list) in group_vars, or ensure resolvectl reports per-link DNS on {{ nix_default_iface.stdout | trim }}.
-      when: (nix_upstream_resolvers | default([]) | length) == 0
+    - name: Assert upstream DNS is available (OpenStack env requirement)
+      ansible.builtin.assert:
+        that:
+          - nix_upstream_resolvers | length > 0
+        fail_msg: >-
+          [Preflight: DNS upstream] No upstream DNS resolvers found.
+          Define openstack_dns_servers in group_vars/all.yml (example:
+          openstack_dns_servers: ['10.0.0.2','10.0.0.3']) when nmcli/resolvectl discovery is empty.
 
-    - name: Configure systemd-resolved with split-DNS resolvers
+    - name: Configure split-DNS resolvers (team DC first + upstream OpenStack DNS)
       ansible.builtin.command:
         argv: "{{ ['resolvectl', 'dns', (nix_default_iface.stdout | trim)] + nix_ad_resolvers }}"
-      register: nix_dns_resolved
-      changed_when: nix_dns_resolved.rc == 0
-      failed_when: false
+      changed_when: true
 
-    - name: Configure route-only split DNS for AD domain
+    - name: Configure split-DNS search and routing domains for AD
       ansible.builtin.command:
         argv:
           - resolvectl
           - domain
           - "{{ nix_default_iface.stdout | trim }}"
+          - "{{ ad_domain }}"
           - "~{{ ad_domain }}"
-      register: nix_dns_domain_route
-      changed_when: nix_dns_domain_route.rc == 0
-      failed_when: false
+      changed_when: true
 
-    - name: Flush systemd-resolved cache
+    - name: Flush systemd-resolved caches
       ansible.builtin.command: resolvectl flush-caches
-      when:
-        - nix_dns_resolved is defined
-        - nix_dns_resolved.rc | default(1) == 0
+      changed_when: false
       failed_when: false
 
-    - name: Configure NetworkManager DNS fallback (split-DNS, preserve existing)
-      ansible.builtin.shell: |
-        set -euo pipefail
-        CON=$(nmcli -t -f NAME con show --active | head -1)
-        if [ -z "$CON" ]; then
-          echo "no_active_nm_connection"
-          exit 2
-        fi
-        nmcli con mod "$CON" ipv4.dns "{{ nix_ad_resolvers | join(' ') }}" ipv4.dns-search "~{{ ad_domain }}"
-        nmcli con up "$CON"
-      args:
-        executable: /bin/bash
-      register: nix_dns_nm
-      when:
-        - nix_dns_resolved.rc | default(1) != 0
-      changed_when: nix_dns_nm.rc == 0
-      failed_when: false
-
-    - name: Fail if neither systemd-resolved nor NetworkManager DNS update worked
-      ansible.builtin.fail:
-        msg: >-
-          [Preflight: DNS config] Unable to apply split-DNS resolver order with team DC first.
-          resolvectl rc={{ nix_dns_resolved.rc | default('n/a') }},
-          nmcli rc={{ nix_dns_nm.rc | default('n/a') }}.
-          Ensure systemd-resolved or NetworkManager is present and active.
-      when:
-        - nix_dns_resolved.rc | default(1) != 0
-        - nix_dns_nm.rc | default(1) != 0
-
-    - name: Preflight DNS A record resolution via team DC
+    - name: Validate AD A record via team DC
       ansible.builtin.command:
         argv:
           - dig
           - +short
           - "@{{ team_domain_controller_ip }}"
           - "{{ ad_domain }}"
-      register: nix_a_check
+      register: nix_dig_a
       changed_when: false
-      failed_when: false
+      failed_when: (nix_dig_a.stdout | trim | length) == 0
 
-    - name: Fail when AD DNS A lookup fails via team DC
-      ansible.builtin.fail:
-        msg: >-
-          [Preflight: DNS A] Failed to resolve {{ ad_domain }} using team DC {{ team_domain_controller_ip }}.
-          Verify DC DNS zone, host A records, and that Linux host can query UDP/TCP 53 on the DC.
-      when: (nix_a_check.stdout | trim | length) == 0
-
-    - name: Preflight SRV lookup for LDAP DC discovery via team DC
+    - name: Validate AD SRV record via team DC
       ansible.builtin.command:
         argv:
           - dig
@@ -157,41 +135,32 @@
           - "@{{ team_domain_controller_ip }}"
           - "_ldap._tcp.dc._msdcs.{{ ad_domain }}"
           - SRV
-      register: nix_srv_check
+      register: nix_dig_srv_dc
       changed_when: false
-      failed_when: false
+      failed_when: (nix_dig_srv_dc.stdout | trim | length) == 0
 
-    - name: Fail when AD SRV records are missing
-      ansible.builtin.fail:
-        msg: >-
-          [Preflight: DNS SRV] Missing _ldap._tcp.dc._msdcs.{{ ad_domain }} records from DC {{ team_domain_controller_ip }}.
-          Ensure AD-integrated DNS is healthy and Netlogon registered SRV records on bardown.
-      when: (nix_srv_check.stdout | trim | length) == 0
-
-    - name: Preflight TCP reachability to team DC ports
-      ansible.builtin.wait_for:
-        host: "{{ team_domain_controller_ip }}"
-        port: "{{ item }}"
-        timeout: 10
-        delay: 0
-        state: started
-      loop:
-        - 53
-        - 88
-        - 389
-      register: nix_port_checks
-      failed_when: false
+    - name: Validate split-DNS resolver query for AD domain
+      ansible.builtin.command:
+        argv:
+          - resolvectl
+          - query
+          - "{{ ad_domain }}"
+      register: nix_resolvectl_query_domain
       changed_when: false
+      failed_when: nix_resolvectl_query_domain.rc != 0
 
-    - name: Fail if required AD ports are unreachable
-      ansible.builtin.fail:
-        msg: >-
-          [Preflight: TCP reachability] One or more required ports are unreachable on team DC {{ team_domain_controller_ip }}.
-          Required: 53 (DNS), 88 (Kerberos), 389 (LDAP).
-          Check host firewall/security groups and routing from this Linux host to bardown.
-      when: (nix_port_checks.results | selectattr('failed', 'defined') | selectattr('failed') | list | length) > 0
+    - name: Validate split-DNS resolver query for LDAP SRV
+      ansible.builtin.command:
+        argv:
+          - resolvectl
+          - query
+          - "_ldap._tcp.{{ ad_domain }}"
+          - "--type=SRV"
+      register: nix_resolvectl_query_srv
+      changed_when: false
+      failed_when: nix_resolvectl_query_srv.rc != 0
 
-    - name: Preflight adcli info against explicit team DC
+    - name: Validate adcli info against explicit team DC
       ansible.builtin.command:
         argv:
           - adcli
@@ -200,18 +169,9 @@
           - "--domain-controller={{ team_domain_controller_ip }}"
       register: nix_adcli_info
       changed_when: false
-      failed_when: false
+      failed_when: nix_adcli_info.rc != 0
 
-    - name: Fail if adcli info against team DC fails
-      ansible.builtin.fail:
-        msg: >-
-          [Preflight: adcli info] Failed against DC {{ team_domain_controller_ip }} for domain {{ ad_domain }}.
-          stdout: {{ nix_adcli_info.stdout | default('') | trim }}
-          stderr: {{ nix_adcli_info.stderr | default('') | trim }}
-          Check DNS route (~{{ ad_domain }}), Kerberos (88), LDAP (389), and DC health.
-      when: nix_adcli_info.rc != 0
-
-    - name: Preflight realm discovery via DNS split routing
+    - name: Validate realm discovery through split DNS
       ansible.builtin.command:
         argv:
           - realm
@@ -219,42 +179,9 @@
           - "{{ ad_domain }}"
       register: nix_realm_discover
       changed_when: false
-      failed_when: false
+      failed_when: nix_realm_discover.rc != 0
 
-    - name: Fail if realm discovery fails
-      ansible.builtin.fail:
-        msg: >-
-          [Preflight: realm discover] Failed to discover {{ ad_domain }} via DNS split routing.
-          stderr: {{ nix_realm_discover.stderr | default('') | trim }}
-          Check resolvectl domain (~{{ ad_domain }}), SRV records, and AD service health on bardown.
-      when: nix_realm_discover.rc != 0
-
-    - name: Join system to AD with realm (DNS split routing; try common principal formats)
-      ansible.builtin.shell: |
-        set -euo pipefail
-        realm_name='{{ ad_domain }}'
-        password='{{ ad_domain_join.password }}'
-        u1='{{ ad_domain_join.username }}'
-        u2='{{ ad_domain_join.username }}@{{ ad_domain }}'
-        err="$(mktemp)"
-
-        for u in "$u1" "$u2"; do
-          if printf '%s\n' "$password" | realm join -U "$u" "$realm_name" 2>"$err"; then
-            echo "joined_with=$u"
-            exit 0
-          fi
-        done
-
-        echo "realm join failed for both principal formats: $u1 and $u2" >&2
-        cat "$err" >&2 || true
-        exit 1
-      args:
-        executable: /bin/bash
-      no_log: "{{ not (nix_ad_join_debug | default(false) | bool) }}"
-      register: nix_realm_join
-      when: (nix_ad_join_method | default('realm')) == 'realm'
-
-    - name: Join system to AD with adcli (strict team-DC targeting)
+    - name: Join with adcli (default strict per-DC)
       ansible.builtin.shell: |
         set -euo pipefail
         domain='{{ ad_domain }}'
@@ -278,17 +205,110 @@
         executable: /bin/bash
       no_log: "{{ not (nix_ad_join_debug | default(false) | bool) }}"
       register: nix_realm_join
-      when: (nix_ad_join_method | default('realm')) == 'adcli'
+      when: (nix_ad_join_method | default('adcli')) == 'adcli'
 
-    - name: Fail with actionable join guidance
+    - name: Join with realm (optional DNS-based path)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        realm_name='{{ ad_domain }}'
+        password='{{ ad_domain_join.password }}'
+        u1='{{ ad_domain_join.username }}'
+        u2='{{ ad_domain_join.username }}@{{ ad_domain }}'
+        err="$(mktemp)"
+
+        for u in "$u1" "$u2"; do
+          if printf '%s\n' "$password" | realm join -U "$u" "$realm_name" 2>"$err"; then
+            echo "joined_with=$u"
+            exit 0
+          fi
+        done
+
+        echo "realm join failed for both principal formats: $u1 and $u2" >&2
+        cat "$err" >&2 || true
+        exit 1
+      args:
+        executable: /bin/bash
+      no_log: "{{ not (nix_ad_join_debug | default(false) | bool) }}"
+      register: nix_realm_join
+      when: (nix_ad_join_method | default('adcli')) == 'realm'
+
+  rescue:
+    - name: Diagnostic - resolvectl status
+      ansible.builtin.command: resolvectl status
+      register: nix_diag_resolvectl_status
+      changed_when: false
+      failed_when: false
+
+    - name: Diagnostic - resolvectl dns iface
+      ansible.builtin.command:
+        argv:
+          - resolvectl
+          - dns
+          - "{{ nix_default_iface.stdout | default('') | trim }}"
+      register: nix_diag_resolvectl_dns
+      changed_when: false
+      failed_when: false
+      when: nix_default_iface is defined
+
+    - name: Diagnostic - resolvectl domain iface
+      ansible.builtin.command:
+        argv:
+          - resolvectl
+          - domain
+          - "{{ nix_default_iface.stdout | default('') | trim }}"
+      register: nix_diag_resolvectl_domain
+      changed_when: false
+      failed_when: false
+      when: nix_default_iface is defined
+
+    - name: Diagnostic - nmcli device show iface
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - device
+          - show
+          - "{{ nix_default_iface.stdout | default('') | trim }}"
+      register: nix_diag_nmcli_dev
+      changed_when: false
+      failed_when: false
+      when: nix_default_iface is defined
+
+    - name: Diagnostic - /etc/resolv.conf
+      ansible.builtin.command:
+        argv: [cat, /etc/resolv.conf]
+      register: nix_diag_resolv_conf
+      changed_when: false
+      failed_when: false
+
+    - name: Fail with consolidated diagnostics
       ansible.builtin.fail:
-        msg: >-
-          [Join: AD join] Join failed for {{ inventory_hostname }} targeting DC {{ team_domain_controller_ip }}.
-          Method: {{ nix_ad_join_method | default('realm') }}.
-          Tried users '{{ ad_domain_join.username }}' and '{{ ad_domain_join.username }}@{{ ad_domain }}'.
-          Re-run with -e nix_ad_join_debug=true to see full join stderr,
-          then verify ad_domain_join credentials and domain admin rights.
-      when: nix_realm_join.rc | default(0) != 0
+        msg: |
+          [AD join preflight/join failed] Host={{ inventory_hostname }} DC={{ team_domain_controller_ip }}
+          Default iface: {{ nix_default_iface.stdout | default('n/a') | trim }}
+          Upstream resolvers (ordered): {{ nix_upstream_resolvers | default([]) }}
+          AD resolvers applied: {{ nix_ad_resolvers | default([]) }}
+          Join method: {{ nix_ad_join_method | default('adcli') }}
+          Define openstack_dns_servers if upstream resolvers are empty in OpenStack.
+
+          --- resolvectl status ---
+          {{ nix_diag_resolvectl_status.stdout | default('') }}
+          {{ nix_diag_resolvectl_status.stderr | default('') }}
+
+          --- resolvectl dns iface ---
+          {{ nix_diag_resolvectl_dns.stdout | default('') }}
+          {{ nix_diag_resolvectl_dns.stderr | default('') }}
+
+          --- resolvectl domain iface ---
+          {{ nix_diag_resolvectl_domain.stdout | default('') }}
+          {{ nix_diag_resolvectl_domain.stderr | default('') }}
+
+          --- nmcli device show iface ---
+          {{ nix_diag_nmcli_dev.stdout | default('') }}
+          {{ nix_diag_nmcli_dev.stderr | default('') }}
+
+          --- /etc/resolv.conf ---
+          {{ nix_diag_resolv_conf.stdout | default('') }}
+          {{ nix_diag_resolv_conf.stderr | default('') }}
 
 - name: Create home directories for domain logins
   ansible.builtin.lineinfile:

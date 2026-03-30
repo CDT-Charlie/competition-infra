@@ -72,12 +72,20 @@ After **WinRM bootstrap** and **DC promotion** (`win_dc_dns`), `site.yml` joins 
 
 **WinRM on domain controllers (bardown):** After DCPromo, local **`ansible`** is usually rejected (`ntlm: credentials were rejected`). **`windows_dc_winrm_use_domain_account`** in **`all.yml`** defaults to **`true`** so Ansible uses **`LAKEPLACID\greyteam`** (from **`ad_domain_join`**) on DCs. Set **`false`** only for the **first** `win_dc_dns` run on a workgroup server, then set **`true`** again (or use `-e windows_dc_winrm_use_domain_account=false` once).
 
-**Linux SSH vs AD join:** Ansible uses **`bootstrap_user`** (**cyberrange**) for SSH and `sudo`; AD join auth uses **`ad_domain_join`** (**greyteam**). The Linux preflight configures split DNS with `resolvectl domain ~{{ ad_domain }}` and preserves OpenStack DNS. If `openstack_dns_servers` is set (list), those are used as upstream resolvers; otherwise it queries per-link DNS from `resolvectl`.
+**Linux SSH vs AD join:** Ansible uses **`bootstrap_user`** (**cyberrange**) for SSH and `sudo`; AD join auth uses **`ad_domain_join`** (**greyteam**). Split DNS now configures both **search** and **route-only** AD domains on the active link via `resolvectl domain <iface> {{ ad_domain }} ~{{ ad_domain }}` so `lakeplacid.local` routes to team DC while OpenStack DNS remains available for non-AD names (including `openstacklocal` and apt mirrors).
 
-**Linux AD preflight checks (actionable failures):** DNS config application, AD A/SRV lookups, TCP 53/88/389, `adcli info --domain-controller=<team_dc_ip>`, and `realm discover`. Join defaults to `realm join` (DNS-based discovery, no unsupported `--server` flags). For strict per-DC targeting use `-e nix_ad_join_method=adcli` (uses `adcli join --domain-controller=<team_dc_ip>`).
+**Linux upstream DNS discovery order:**  
+1) explicit `openstack_dns_servers` (group_vars/inventory),  
+2) `nmcli -g IP4.DNS device show <default_iface>`,  
+3) `resolvectl dns <default_iface>`.  
+The role fails only if all three are empty.
 
-**If apt cache fails before join:** set `openstack_dns_servers` in `group_vars/all.yml` so non-AD DNS still resolves package mirrors while AD lookups route to team DC. Example:
+**OpenStack requirement:** set `openstack_dns_servers` in `group_vars/all.yml` when per-link DNS auto-discovery is empty in your environment. Example:  
 `openstack_dns_servers: ["10.0.0.2","10.0.0.3"]`
+
+**Linux AD preflight checks (actionable failures):** `dig @<team_dc_ip> {{ ad_domain }}`, `dig @<team_dc_ip> _ldap._tcp.dc._msdcs.{{ ad_domain }} SRV`, `resolvectl query {{ ad_domain }}`, `resolvectl query _ldap._tcp.{{ ad_domain }} --type=SRV`, `adcli info {{ ad_domain }} --domain-controller=<team_dc_ip>`, plus TCP 53/88/389 and `realm discover`.
+
+**Join method default:** `nix_ad_join_method: "adcli"` (strict per-DC targeting for dual isolated team ADs with same domain name). Optional override: `-e nix_ad_join_method=realm`.
 
 **Windows temp cleanup warnings:** `Failure cleaning temp path … Incorrect function` / `NtSetInformationFile` are often benign (upgrade `ansible.windows` if noisy). Avoid custom **`ansible_remote_tmp`** under **`C:\Windows\Temp\...`** unless that folder exists — it can cause `DirectoryNotFoundException` during facts.
 
