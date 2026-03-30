@@ -26,9 +26,9 @@ windows_local_winrm_password: "DeployWindows123!"
 
 # After a host is promoted to **domain controller**, WinRM with local `ansible` is often rejected.
 # Set to **true** so bardown (windows_dc) uses **ad_domain_join** (e.g. LAKEPLACID\greyteam) for Ansible.
-# Set **true** after the DC is promoted (bardown rejects local ansible). Leave **false** for the very
-# first win_dc_dns run on a workgroup server, then set true for all later playbook runs.
-windows_dc_winrm_use_domain_account: false
+# **true** = WinRM to bardown as LAKEPLACID\greyteam (required after DCPromo; local ansible is rejected).
+# **false** = only for the first win_dc_dns run on a brand-new workgroup image. Most lab reruns use true.
+windows_dc_winrm_use_domain_account: true
 
 # Active Directory (used for realm / domain join on members). Must match windows_dc.domain_name.
 ad_domain: "lakeplacid.local"

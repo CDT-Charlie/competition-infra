@@ -70,11 +70,11 @@ After **WinRM bootstrap** and **DC promotion** (`win_dc_dns`), `site.yml` joins 
 
 **Variables:** `windows_ad_domain_join` and per-team **`team_domain_controller`**, **`team_domain_controller_ip`**, and `ad_domain` / `ad_domain_join` (see `group_vars/blue_team_*_{linux,windows}.yml`). `win_domain_join` uses the DC **FQDN** for `microsoft.ad.membership`’s `domain_server` (not the IP alone). Linux uses `nix_ad_domain_join` in `group_vars/blue_linux.yml`.
 
-**WinRM on domain controllers (bardown):** After DCPromo, NTLM as local **`ansible`** often fails (*credentials were rejected*). `group_vars/windows_dc.yml` then switches Ansible to **`{{ windows_dc.netbios_name }}\{{ ad_domain_join.username }}`** (e.g. `LAKEPLACID\greyteam`) when **`windows_dc_winrm_use_domain_account`** in `all.yml` is **true**. Use **`false`** only for the **first** `win_dc_dns` run on a still–work-group DC; set **`true`** after promotion and for every later run.
+**WinRM on domain controllers (bardown):** After DCPromo, local **`ansible`** is usually rejected (`ntlm: credentials were rejected`). **`windows_dc_winrm_use_domain_account`** in **`all.yml`** defaults to **`true`** so Ansible uses **`LAKEPLACID\greyteam`** (from **`ad_domain_join`**) on DCs. Set **`false`** only for the **first** `win_dc_dns` run on a workgroup server, then set **`true`** again (or use `-e windows_dc_winrm_use_domain_account=false` once).
 
 **Linux SSH vs AD join:** Ansible uses **`bootstrap_user`** (**cyberrange**) for SSH and `sudo`; **`realm join`** still uses **`ad_domain_join`** (**greyteam**) for `-U`. Avoid a global **`ansible_user`** in `all.yml` on Linux hosts or Gathering Facts can try the wrong account.
 
-**Windows temp cleanup warnings:** `Failure cleaning temp path … Incorrect function` is usually benign. `ansible_remote_tmp` under **`C:\Windows\Temp`** is set in **`blue_windows.yml`** and **`windows_dc.yml`** to reduce it.
+**Windows temp cleanup warnings:** `Failure cleaning temp path … Incorrect function` / `NtSetInformationFile` are often benign (upgrade `ansible.windows` if noisy). Avoid custom **`ansible_remote_tmp`** under **`C:\Windows\Temp\...`** unless that folder exists — it can cause `DirectoryNotFoundException` during facts.
 
 **Domain stack only** (no scored SMB/web/mail/Grafana/rsyslog plays):
 
