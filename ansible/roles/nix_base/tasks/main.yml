@@ -33,24 +33,24 @@
   changed_when: true
   failed_when: false
 
-- name: Update apt cache (retry for transient mirror/DNS issues)
-  ansible.builtin.apt:
-    update_cache: true
-    cache_valid_time: 3600
-  register: nix_apt_update
-  retries: 3
-  delay: 5
-  until: nix_apt_update is succeeded
+# - name: Update apt cache (retry for transient mirror/DNS issues)
+#   ansible.builtin.apt:
+#     update_cache: true
+#     cache_valid_time: 3600
+#   register: nix_apt_update
+#   retries: 3
+#   delay: 5
+#   until: nix_apt_update is succeeded
 
-- name: Fail with actionable apt/DNS guidance
-  ansible.builtin.fail:
-    msg: >-
-      [APT preflight] Failed to update apt cache.
-      If DNS was recently changed for AD split-DNS, set openstack_dns_servers (list) in group_vars
-      so Ubuntu package mirrors remain resolvable. Example:
-      openstack_dns_servers: ['10.x.x.x','10.y.y.y'].
-      Also validate from host: getent hosts archive.ubuntu.com ; resolvectl status
-  when: nix_apt_update is failed
+# - name: Fail with actionable apt/DNS guidance
+#   ansible.builtin.fail:
+#     msg: >-
+#       [APT preflight] Failed to update apt cache.
+#       If DNS was recently changed for AD split-DNS, set openstack_dns_servers (list) in group_vars
+#       so Ubuntu package mirrors remain resolvable. Example:
+#       openstack_dns_servers: ['10.x.x.x','10.y.y.y'].
+#       Also validate from host: getent hosts archive.ubuntu.com ; resolvectl status
+#   when: nix_apt_update is failed
 
 - name: Install common packages
   ansible.builtin.apt:
