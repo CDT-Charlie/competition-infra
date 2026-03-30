@@ -72,7 +72,9 @@ After **WinRM bootstrap** and **DC promotion** (`win_dc_dns`), `site.yml` joins 
 
 **WinRM on domain controllers (bardown):** After DCPromo, local **`ansible`** is usually rejected (`ntlm: credentials were rejected`). **`windows_dc_winrm_use_domain_account`** in **`all.yml`** defaults to **`true`** so Ansible uses **`LAKEPLACID\greyteam`** (from **`ad_domain_join`**) on DCs. Set **`false`** only for the **first** `win_dc_dns` run on a workgroup server, then set **`true`** again (or use `-e windows_dc_winrm_use_domain_account=false` once).
 
-**Linux SSH vs AD join:** Ansible uses **`bootstrap_user`** (**cyberrange**) for SSH and `sudo`; **`realm join`** still uses **`ad_domain_join`** (**greyteam**) for `-U`. Avoid a global **`ansible_user`** in `all.yml` on Linux hosts or Gathering Facts can try the wrong account.
+**Linux SSH vs AD join:** Ansible uses **`bootstrap_user`** (**cyberrange**) for SSH and `sudo`; AD join auth uses **`ad_domain_join`** (**greyteam**). The Linux preflight configures split DNS with `resolvectl domain ~{{ ad_domain }}` and preserves OpenStack DNS. If `openstack_dns_servers` is set (list), those are used as upstream resolvers; otherwise it queries per-link DNS from `resolvectl`.
+
+**Linux AD preflight checks (actionable failures):** DNS config application, AD A/SRV lookups, TCP 53/88/389, `adcli info --domain-controller=<team_dc_ip>`, and `realm discover`. Join defaults to `realm join` (DNS-based discovery, no unsupported `--server` flags). For strict per-DC targeting use `-e nix_ad_join_method=adcli` (uses `adcli join --domain-controller=<team_dc_ip>`).
 
 **Windows temp cleanup warnings:** `Failure cleaning temp path … Incorrect function` / `NtSetInformationFile` are often benign (upgrade `ansible.windows` if noisy). Avoid custom **`ansible_remote_tmp`** under **`C:\Windows\Temp\...`** unless that folder exists — it can cause `DirectoryNotFoundException` during facts.
 
