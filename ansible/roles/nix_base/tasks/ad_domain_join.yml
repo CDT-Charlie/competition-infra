@@ -377,6 +377,14 @@
       }}
   when: nix_ad_domain_join | default(false)
 
+- name: Determine whether realmd has a joined realm for permit
+  ansible.builtin.set_fact:
+    nix_realmd_realm_available: >-
+      {{
+        (nix_realm_list_names.stdout_lines | default([]) | map('trim') | reject('equalto', '') | list | length) > 0
+      }}
+  when: nix_ad_domain_join | default(false)
+
 - name: Permit team domain users to log into this host via realm
   ansible.builtin.command:
     argv: "{{ ['realm', 'permit', '--realm', nix_effective_realm_name] + nix_realm_permit_users }}"
@@ -386,12 +394,71 @@
   when:
     - nix_ad_domain_join | default(false)
     - nix_realm_permit_users | default([]) | length > 0
+    - nix_realmd_realm_available | default(false)
+
+- name: Skip realm permit when host is adcli/sssd joined without realmd realm registration
+  ansible.builtin.debug:
+    msg: >-
+      Skipping realm permit on {{ inventory_hostname }} because `realm list --name-only` is empty.
+      AD connectivity can still be valid via adcli/sssd (for example adcli info works).
+      To enforce explicit allowlists on these hosts, configure SSSD access controls.
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_realm_permit_users | default([]) | length > 0
+    - not (nix_realmd_realm_available | default(false))
+
+- name: Build SSSD allowlist identities (user@domain) for adcli/sssd fallback
+  ansible.builtin.set_fact:
+    nix_sssd_allow_users: >-
+      {{
+        nix_realm_permit_users
+        | default([])
+        | map('regex_replace', '$', '@' ~ ad_domain)
+        | list
+      }}
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_realm_permit_users | default([]) | length > 0
+    - not (nix_realmd_realm_available | default(false))
+
+- name: Enforce SSSD simple access provider when realm permit is unavailable
+  ansible.builtin.ini_file:
+    path: /etc/sssd/sssd.conf
+    section: "domain/{{ ad_domain }}"
+    option: access_provider
+    value: simple
+    mode: "0600"
+    no_extra_spaces: true
+  register: nix_sssd_access_provider
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_sssd_allow_users | default([]) | length > 0
+    - not (nix_realmd_realm_available | default(false))
+
+- name: Set SSSD allowed users when realm permit is unavailable
+  ansible.builtin.ini_file:
+    path: /etc/sssd/sssd.conf
+    section: "domain/{{ ad_domain }}"
+    option: simple_allow_users
+    value: "{{ nix_sssd_allow_users | join(',') }}"
+    mode: "0600"
+    no_extra_spaces: true
+  register: nix_sssd_allow_users_cfg
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_sssd_allow_users | default([]) | length > 0
+    - not (nix_realmd_realm_available | default(false))
 
 - name: Restart SSSD after domain join
   ansible.builtin.service:
     name: sssd
     state: restarted
   when:
-    - nix_realm_join is defined
-    - nix_realm_join is changed
+    - (
+        (nix_realm_join is defined and nix_realm_join is changed)
+        or
+        (nix_sssd_access_provider is defined and nix_sssd_access_provider is changed)
+        or
+        (nix_sssd_allow_users_cfg is defined and nix_sssd_allow_users_cfg is changed)
+      )
   failed_when: false
