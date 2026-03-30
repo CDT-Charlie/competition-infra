@@ -64,6 +64,20 @@ ansible-playbook -i inventory.yml site.yml
 
 `site.yml` defaults Domain Controller deployment scope to each DC host's own team (`dc_team`), so no extra argument is required for normal runs.
 
+### Active Directory / domain join (Windows + Linux, one playbook)
+
+After **WinRM bootstrap** and **DC promotion** (`win_dc_dns`), `site.yml` joins **all** member Windows hosts (`blue_windows:!windows_dc`) and **all** Blue Linux hosts (`blue_linux`) to the domain—one command for both OS families.
+
+**Variables:** `windows_ad_domain_join` and per-team `team_domain_controller_ip` (see `group_vars/blue_team_*_{linux,windows}.yml`); Linux uses `nix_ad_domain_join` in `group_vars/blue_linux.yml` and `ad_domain` / `ad_domain_join` in `group_vars`.
+
+**Domain stack only** (no scored SMB/web/mail/Grafana/rsyslog plays):
+
+```bash
+ansible-playbook -i inventory.yml site.yml --tags domain_stack
+```
+
+**Full stack** (default) runs `domain_stack` plays and then **`services`**-tagged plays.
+
 Optional override for DC/DNS scope:
 ```bash
 # Team 1 only
