@@ -76,6 +76,9 @@ After **WinRM bootstrap** and **DC promotion** (`win_dc_dns`), `site.yml` joins 
 
 **Linux AD preflight checks (actionable failures):** DNS config application, AD A/SRV lookups, TCP 53/88/389, `adcli info --domain-controller=<team_dc_ip>`, and `realm discover`. Join defaults to `realm join` (DNS-based discovery, no unsupported `--server` flags). For strict per-DC targeting use `-e nix_ad_join_method=adcli` (uses `adcli join --domain-controller=<team_dc_ip>`).
 
+**If apt cache fails before join:** set `openstack_dns_servers` in `group_vars/all.yml` so non-AD DNS still resolves package mirrors while AD lookups route to team DC. Example:
+`openstack_dns_servers: ["10.0.0.2","10.0.0.3"]`
+
 **Windows temp cleanup warnings:** `Failure cleaning temp path … Incorrect function` / `NtSetInformationFile` are often benign (upgrade `ansible.windows` if noisy). Avoid custom **`ansible_remote_tmp`** under **`C:\Windows\Temp\...`** unless that folder exists — it can cause `DirectoryNotFoundException` during facts.
 
 **Domain stack only** (no scored SMB/web/mail/Grafana/rsyslog plays):

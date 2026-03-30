@@ -2,13 +2,58 @@
 # Base Linux role - Common Linux system setup
 # This role provides basic Linux configuration that other roles can depend on
 
-- name: Update apt cache
-  apt:
-    update_cache: yes
+- name: Detect default IPv4 interface for pre-APT DNS checks
+  ansible.builtin.shell: |
+    set -euo pipefail
+    ip -4 route show default | head -1 | awk '{for (i=1;i<=NF;i++) if ($i=="dev") {print $(i+1); exit}}'
+  args:
+    executable: /bin/bash
+  register: nix_default_iface_pre_apt
+  changed_when: false
+  failed_when: false
+
+- name: Read /etc/resolv.conf nameservers (pre-APT)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    awk '/^nameserver / {print $2}' /etc/resolv.conf || true
+  args:
+    executable: /bin/bash
+  register: nix_resolv_conf_nameservers
+  changed_when: false
+  failed_when: false
+
+- name: Recover split DNS for apt when only 127.0.0.53 is present
+  ansible.builtin.command:
+    argv: "{{ ['resolvectl', 'dns', (nix_default_iface_pre_apt.stdout | trim)] + openstack_dns_servers }}"
+  when:
+    - openstack_dns_servers | default([]) | length > 0
+    - nix_default_iface_pre_apt.stdout | default('') | trim | length > 0
+    - (nix_resolv_conf_nameservers.stdout_lines | default([]) | length) == 1
+    - (nix_resolv_conf_nameservers.stdout_lines | first) == "127.0.0.53"
+  changed_when: true
+  failed_when: false
+
+- name: Update apt cache (retry for transient mirror/DNS issues)
+  ansible.builtin.apt:
+    update_cache: true
     cache_valid_time: 3600
+  register: nix_apt_update
+  retries: 3
+  delay: 5
+  until: nix_apt_update is succeeded
+
+- name: Fail with actionable apt/DNS guidance
+  ansible.builtin.fail:
+    msg: >-
+      [APT preflight] Failed to update apt cache.
+      If DNS was recently changed for AD split-DNS, set openstack_dns_servers (list) in group_vars
+      so Ubuntu package mirrors remain resolvable. Example:
+      openstack_dns_servers: ['10.x.x.x','10.y.y.y'].
+      Also validate from host: getent hosts archive.ubuntu.com ; resolvectl status
+  when: nix_apt_update is failed
 
 - name: Install common packages
-  apt:
+  ansible.builtin.apt:
     name:
       - curl
       - wget

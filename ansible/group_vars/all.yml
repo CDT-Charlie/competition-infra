@@ -30,6 +30,11 @@ windows_local_winrm_password: "DeployWindows123!"
 # **false** = only for the first win_dc_dns run on a brand-new workgroup image. Most lab reruns use true.
 windows_dc_winrm_use_domain_account: true
 
+# OpenStack upstream DNS servers for non-AD lookups (apt mirrors, etc.).
+# Split-DNS keeps lakeplacid.local routed to team DC while preserving these resolvers.
+# Set to your environment DNS IPs, e.g. ["10.0.0.2","10.0.0.3"].
+openstack_dns_servers: []
+
 # Active Directory (used for realm / domain join on members). Must match windows_dc.domain_name.
 ad_domain: "lakeplacid.local"
 # Credentials for joining members to AD (e.g. Domain Admin).
