@@ -196,57 +196,6 @@
       changed_when: false
       failed_when: nix_realm_discover.rc != 0
 
-    - name: Join with adcli (default strict per-DC)
-      ansible.builtin.shell: |
-        set -euo pipefail
-        domain='{{ ad_domain }}'
-        dc='{{ team_domain_controller_ip }}'
-        password='{{ ad_domain_join.password }}'
-        u1='{{ ad_domain_join.username }}'
-        u2='{{ ad_domain_join.username }}@{{ ad_domain }}'
-        err="$(mktemp)"
-
-        for u in "$u1" "$u2"; do
-          if printf '%s\n' "$password" | adcli join --stdin-password --domain "$domain" --domain-controller "$dc" --login-user "$u" 2>"$err"; then
-            echo "joined_with=$u"
-            exit 0
-          fi
-        done
-
-        echo "adcli join failed for both principal formats: $u1 and $u2" >&2
-        cat "$err" >&2 || true
-        exit 1
-      args:
-        executable: /bin/bash
-      no_log: "{{ not (nix_ad_join_debug | default(false) | bool) }}"
-      register: nix_realm_join
-      when: (nix_ad_join_method | default('adcli')) == 'adcli'
-
-    - name: Join with realm (optional DNS-based path)
-      ansible.builtin.shell: |
-        set -euo pipefail
-        realm_name='{{ ad_domain }}'
-        password='{{ ad_domain_join.password }}'
-        u1='{{ ad_domain_join.username }}'
-        u2='{{ ad_domain_join.username }}@{{ ad_domain }}'
-        err="$(mktemp)"
-
-        for u in "$u1" "$u2"; do
-          if printf '%s\n' "$password" | realm join -U "$u" "$realm_name" 2>"$err"; then
-            echo "joined_with=$u"
-            exit 0
-          fi
-        done
-
-        echo "realm join failed for both principal formats: $u1 and $u2" >&2
-        cat "$err" >&2 || true
-        exit 1
-      args:
-        executable: /bin/bash
-      no_log: "{{ not (nix_ad_join_debug | default(false) | bool) }}"
-      register: nix_realm_join
-      when: (nix_ad_join_method | default('adcli')) == 'realm'
-
   rescue:
     - name: Diagnostic - resolvectl status
       ansible.builtin.command: resolvectl status
@@ -339,7 +288,66 @@
     mode: "0440"
     content: |
       %Domain\ Admins@{{ ad_domain }} ALL=(ALL:ALL) ALL
+      %domain\ admins@{{ ad_domain }} ALL=(ALL:ALL) ALL
+      {% for u in (((blue_team_admin_users | default([])) + (blue_shared_users | default([]) | map(attribute='name') | list)) | unique) %}
+      {{ u }}@{{ ad_domain }} ALL=(ALL:ALL) ALL
+      {% endfor %}
     validate: "/usr/sbin/visudo -cf %s"
+
+- name: Join with adcli (default strict per-DC) at end of AD flow
+  ansible.builtin.shell: |
+    set -euo pipefail
+    domain='{{ ad_domain }}'
+    dc='{{ team_domain_controller_ip }}'
+    password='{{ ad_domain_join.password }}'
+    u1='{{ ad_domain_join.username }}'
+    u2='{{ ad_domain_join.username }}@{{ ad_domain }}'
+    err="$(mktemp)"
+
+    for u in "$u1" "$u2"; do
+      if printf '%s\n' "$password" | adcli join --stdin-password --domain "$domain" --domain-controller "$dc" --login-user "$u" 2>"$err"; then
+        echo "joined_with=$u"
+        exit 0
+      fi
+    done
+
+    echo "adcli join failed for both principal formats: $u1 and $u2" >&2
+    cat "$err" >&2 || true
+    exit 1
+  args:
+    executable: /bin/bash
+  no_log: "{{ not (nix_ad_join_debug | default(false) | bool) }}"
+  register: nix_realm_join
+  when:
+    - ad_domain | lower not in (nix_realm_list.stdout | default('') | lower)
+    - (nix_ad_join_method | default('adcli')) == 'adcli'
+
+- name: Join with realm (optional DNS-based path) at end of AD flow
+  ansible.builtin.shell: |
+    set -euo pipefail
+    realm_name='{{ ad_domain }}'
+    password='{{ ad_domain_join.password }}'
+    u1='{{ ad_domain_join.username }}'
+    u2='{{ ad_domain_join.username }}@{{ ad_domain }}'
+    err="$(mktemp)"
+
+    for u in "$u1" "$u2"; do
+      if printf '%s\n' "$password" | realm join -U "$u" "$realm_name" 2>"$err"; then
+        echo "joined_with=$u"
+        exit 0
+      fi
+    done
+
+    echo "realm join failed for both principal formats: $u1 and $u2" >&2
+    cat "$err" >&2 || true
+    exit 1
+  args:
+    executable: /bin/bash
+  no_log: "{{ not (nix_ad_join_debug | default(false) | bool) }}"
+  register: nix_realm_join
+  when:
+    - ad_domain | lower not in (nix_realm_list.stdout | default('') | lower)
+    - (nix_ad_join_method | default('adcli')) == 'realm'
 
 # --- realm permit: authorise team domain users to log into this Linux host ---
 # Combines admin users + standard users from team group_vars, plus shared accounts.
