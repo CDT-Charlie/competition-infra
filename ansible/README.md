@@ -68,7 +68,7 @@ ansible-playbook -i inventory.yml site.yml
 
 After **WinRM bootstrap** and **DC promotion** (`win_dc_dns`), `site.yml` joins **all** member Windows hosts (`blue_windows:!windows_dc`) and **all** Blue Linux hosts (`blue_linux`) to the domain—one command for both OS families.
 
-**Variables:** `windows_ad_domain_join` and per-team `team_domain_controller_ip` (see `group_vars/blue_team_*_{linux,windows}.yml`); Linux uses `nix_ad_domain_join` in `group_vars/blue_linux.yml` and `ad_domain` / `ad_domain_join` in `group_vars`.
+**Variables:** `windows_ad_domain_join` and per-team **`team_domain_controller`** (short DC hostname, e.g. `blue1-bardown`), **`team_domain_controller_ip`**, and `ad_domain` / `ad_domain_join` (see `group_vars/blue_team_*_{linux,windows}.yml`). `win_domain_join` passes **`domain_server: team_domain_controller.ad_domain`** (FQDN) to `microsoft.ad.membership`—using **only an IP** there often triggers *“This operation is only allowed for the Primary Domain Controller”*. Linux uses `nix_ad_domain_join` in `group_vars/blue_linux.yml`.
 
 **Domain stack only** (no scored SMB/web/mail/Grafana/rsyslog plays):
 

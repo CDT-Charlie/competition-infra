@@ -1,4 +1,5 @@
 ---
+team_domain_controller: "blue1-bardown"
 team_domain_controller_ip: "10.100.2.11"
 windows_ad_domain_join: true
 

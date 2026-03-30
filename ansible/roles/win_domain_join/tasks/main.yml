@@ -22,11 +22,14 @@
             }
           }
 
+    # Use the DC DNS hostname (not raw IP) for domain_server — passing only an IP can produce
+    # "This operation is only allowed for the Primary Domain Controller" / odd domain\IP errors.
+    # Client DNS is already pointed at team_domain_controller_ip; _ldap._tcp / A for the DC should resolve.
     - name: Join Active Directory domain
       microsoft.ad.membership:
         dns_domain_name: "{{ ad_domain }}"
         domain_admin_user: "{{ windows_dc.netbios_name }}\\{{ ad_domain_join.username }}"
         domain_admin_password: "{{ ad_domain_join.password }}"
-        domain_server: "{{ team_domain_controller_ip }}"
+        domain_server: "{{ team_domain_controller }}.{{ ad_domain }}"
         state: domain
         reboot: true
