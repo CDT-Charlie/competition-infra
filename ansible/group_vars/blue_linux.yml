@@ -1,5 +1,6 @@
 ---
-# Connection and privilege escalation settings for Blue Team Linux hosts.
+# Connection and privilege escalation — bootstrap user cyberrange (see all.yml → bootstrap_user).
+# Domain join uses ad_domain_join (greyteam) inside nix_base for realm join -U only.
 ansible_connection: ssh
 ansible_user: "{{ bootstrap_user.username }}"
 ansible_password: "{{ bootstrap_user.password }}"

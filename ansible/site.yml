@@ -23,6 +23,7 @@
     service: "{{ windows_winrm.monitored_service }}"
   roles:
     - win_base
+    - win_winrm
 
 - name: Deploy Windows DNS / domain controller
   hosts: windows_dc
@@ -55,6 +56,12 @@
   hosts: blue_linux
   become: true
   tags: [domain_join, domain_stack]
+  vars:
+    # Force bootstrap SSH/sudo (cyberrange) — realm join still uses ad_domain_join (e.g. greyteam).
+    ansible_connection: ssh
+    ansible_user: "{{ bootstrap_user.username }}"
+    ansible_password: "{{ bootstrap_user.password }}"
+    ansible_become_password: "{{ bootstrap_user.password }}"
   roles:
     - nix_base
 

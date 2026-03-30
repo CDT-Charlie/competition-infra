@@ -1,7 +1,7 @@
 # Common variables for all hosts
-ansible_user: greyteam
-ansible_connection: ssh
-ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+# Do not set ansible_user / ansible_connection here — Linux uses bootstrap_user (cyberrange) in
+# blue_linux.yml; Windows uses WinRM in blue_windows.yml / windows_dc.yml. A global ansible_user
+# breaks Linux SSH (Gathering Facts) if it overrides cyberrange.
 
 default_password: "Password123!"
 admin_def_passwd: "ChangeThisImmediately!"
@@ -20,6 +20,15 @@ blue_shared_users:
 
 # Password applied to all Blue Team role-specific users.
 blue_team_user_password: "Change.me123!"
+
+# Windows WinRM local account on gold images (members + DC **before** promotion). See blue_windows.yml.
+windows_local_winrm_password: "DeployWindows123!"
+
+# After a host is promoted to **domain controller**, WinRM with local `ansible` is often rejected.
+# Set to **true** so bardown (windows_dc) uses **ad_domain_join** (e.g. LAKEPLACID\greyteam) for Ansible.
+# Set **true** after the DC is promoted (bardown rejects local ansible). Leave **false** for the very
+# first win_dc_dns run on a workgroup server, then set true for all later playbook runs.
+windows_dc_winrm_use_domain_account: false
 
 # Active Directory (used for realm / domain join on members). Must match windows_dc.domain_name.
 ad_domain: "lakeplacid.local"

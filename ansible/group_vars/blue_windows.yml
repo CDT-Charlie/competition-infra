@@ -2,8 +2,10 @@
 # WinRM settings for Blue Team Windows hosts.
 ansible_connection: winrm
 ansible_user: ansible
-ansible_password: DeployWindows123!
+ansible_password: "{{ windows_local_winrm_password }}"
 ansible_port: 5986
 ansible_winrm_scheme: https
 ansible_winrm_transport: ntlm
 ansible_winrm_server_cert_validation: ignore
+# Reduces "Failure cleaning temp path ... NtSetInformationFile Incorrect function" noise on some builds.
+ansible_remote_tmp: C:\Windows\Temp\.ansible-remote
