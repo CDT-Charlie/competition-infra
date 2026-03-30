@@ -1,6 +1,7 @@
 ---
 # Main competition playbook
-# Order: bootstrap Windows -> promote DCs -> join members to AD -> services -> cleanup bootstrap users.
+# Order: bootstrap Windows -> promote DCs -> join members to AD -> services -> cleanup (Windows first,
+# then Linux cyberrange last — see blue_team_users.yml).
 #
 # Alternative methods:
 # - Deploy everything: ansible-playbook -i inventory.yml site.yml

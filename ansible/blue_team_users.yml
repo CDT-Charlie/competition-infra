@@ -1,17 +1,12 @@
 ---
 # After AD join, roster accounts live in the domain only (from win_dc_dns).
-# Bootstrap: connect as cyberrange (see group_vars); imported last from site.yml so cyberrange
-# is removed from every Blue Team host after all other plays (Linux + Windows, including DCs).
-
-- name: Remove bootstrap cyberrange user from Linux
-  hosts: blue_linux
-  become: true
-  tasks:
-    - name: Remove default cyberrange user from Linux
-      ansible.builtin.user:
-        name: "{{ bootstrap_user.username }}"
-        state: absent
-        remove: true
+# Imported last from site.yml. Order matters:
+#   1) Windows cleanup first (still using WinRM as ansible / member auth).
+#   2) Linux bootstrap user last — avoids deleting cyberrange before Windows work, and keeps
+#      cyberrange removal as the final step of a full site.yml run.
+#
+# Linux: userdel fails with "user is currently used by process" if cyberrange has a login/session.
+# force: true uses userdel --force so removal still runs (may drop the Ansible SSH session as it finishes).
 
 - name: Remove bootstrap cyberrange from all Windows hosts
   hosts: blue_windows
@@ -26,3 +21,14 @@
         name: "{{ ansible_user }}"
         state: absent
       when: inventory_hostname not in (groups['windows_dc'] | default([]))
+
+- name: Remove bootstrap cyberrange user from Linux (last — may terminate active cyberrange SSH)
+  hosts: blue_linux
+  become: true
+  tasks:
+    - name: Remove default cyberrange user from Linux
+      ansible.builtin.user:
+        name: "{{ bootstrap_user.username }}"
+        state: absent
+        remove: true
+        force: true

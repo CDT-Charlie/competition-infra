@@ -94,11 +94,46 @@ ansible-playbook -i inventory.yml site.yml --limit monitoring_server
 # Linux rsyslog central service
 ansible-playbook -i inventory.yml site.yml --limit syslog_central
 
-# Users only
+# Users only (Windows bootstrap cleanup first, then Linux `cyberrange` removal last)
 ansible-playbook -i inventory.yml blue_team_users.yml
 ```
 
 ### Deploy SSH public keys (Linux)
+
+**Reach the host before you fix passwords or keys.** If Ansible reports **UNREACHABLE**, **Connection timed out**, or **No route to host**, the control machine often cannot open **TCP 22** to **`ansible_host`**. That is separate from “wrong password” or **AuthenticationMethods**.
+
+On **each Linux VM you cannot reach** (use the VM console, hypervisor, or physical access—**not** SSH):
+
+1. **Install and start SSH** (Ubuntu Desktop does not always have a listening SSH server until you add it):
+   ```bash
+   sudo apt update
+   sudo apt install -y openssh-server
+   sudo systemctl enable --now ssh
+   ```
+2. **Confirm sshd is listening on the network**, not only loopback:
+   ```bash
+   ss -tlnp | grep ':22'
+   ```
+   You want **`0.0.0.0:22`** or **`[::]:22`**. If nothing listens, check **`sudo systemctl status ssh`** and logs: **`journalctl -u ssh -e`**.
+3. **Firewall:** if **UFW** is enabled, allow SSH:
+   ```bash
+   sudo ufw allow OpenSSH
+   # or: sudo ufw allow 22/tcp
+   sudo ufw reload
+   sudo ufw status
+   ```
+4. **Inventory and network:** `inventory.yml` → **`ansible_host`** must be an IP (or DNS name) that the **Ansible controller can route to**. OpenStack/security groups, campus Wi‑Fi client isolation, or wrong VLAN will block traffic even when sshd is fine on the VM.
+
+From the **control node** (quick checks):
+
+```bash
+nc -vz <ansible_host> 22
+ssh -v cyberrange@<ansible_host>
+```
+
+If **`nc`** fails with timeout or “Connection refused”, fix **SSH install / listen address / firewall / cloud SG / routing** on the VM or network first; only then use **`deploy-ssh-keys.sh`** and the password-vs-pubkey notes below.
+
+---
 
 Before relying on key-based SSH for Blue Team Linux hosts, push your controller’s public key onto the **`bootstrap_user`** account (see `group_vars/all.yml` → `bootstrap_user`, typically **`cyberrange`** with the password from `group_vars/blue_linux.yml`).
 
