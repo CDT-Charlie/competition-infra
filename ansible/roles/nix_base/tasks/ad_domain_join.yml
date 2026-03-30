@@ -354,9 +354,32 @@
       }}
   when: nix_ad_domain_join | default(false)
 
+- name: Detect joined realm name for permit operations
+  ansible.builtin.command: realm list --name-only
+  register: nix_realm_list_names
+  changed_when: false
+  failed_when: false
+  when: nix_ad_domain_join | default(false)
+
+- name: Select effective realm name for permit
+  ansible.builtin.set_fact:
+    nix_effective_realm_name: >-
+      {{
+        (
+          nix_realm_list_names.stdout_lines
+          | default([])
+          | map('trim')
+          | reject('equalto', '')
+          | list
+          | first
+        )
+        | default(ad_domain, true)
+      }}
+  when: nix_ad_domain_join | default(false)
+
 - name: Permit team domain users to log into this host via realm
   ansible.builtin.command:
-    argv: "{{ ['realm', 'permit', '--realm', ad_domain] + nix_realm_permit_users }}"
+    argv: "{{ ['realm', 'permit', '--realm', nix_effective_realm_name] + nix_realm_permit_users }}"
   register: nix_realm_permit
   changed_when: nix_realm_permit.rc == 0
   failed_when: nix_realm_permit.rc != 0
