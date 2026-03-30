@@ -55,10 +55,16 @@
           Fix host networking first, then rerun.
       when: nix_default_iface.stdout | default('') | trim | length == 0
 
+    # nmcli -g outputs pipe-separated values on ONE line: "10.0.0.2 | 10.0.0.3 | 127.0.0.53"
+    # Split on | and emit one IP per line so downstream filters work correctly.
     - name: Discover DNS via nmcli (preferred source)
       ansible.builtin.shell: |
         set -euo pipefail
-        nmcli -g IP4.DNS device show "{{ nix_default_iface.stdout | trim }}" 2>/dev/null || true
+        nmcli -g IP4.DNS device show "{{ nix_default_iface.stdout | trim }}" 2>/dev/null \
+          | tr '|' '\n' \
+          | sed 's/[[:space:]]//g' \
+          | sed '/^$/d' \
+          || true
       args:
         executable: /bin/bash
       register: nix_nmcli_dns
@@ -68,14 +74,20 @@
     - name: Discover DNS via resolvectl per-link (fallback source)
       ansible.builtin.shell: |
         set -euo pipefail
-        resolvectl dns "{{ nix_default_iface.stdout | trim }}" 2>/dev/null | sed -E 's/.*: *//' | tr ' ' '\n' | sed '/^$/d' || true
+        resolvectl dns "{{ nix_default_iface.stdout | trim }}" 2>/dev/null \
+          | sed -E 's/.*: *//' \
+          | tr ' ' '\n' \
+          | sed '/^$/d' \
+          || true
       args:
         executable: /bin/bash
       register: nix_resolved_dns
       changed_when: false
       failed_when: false
 
-    - name: Build upstream resolver list in required order
+    # Two separate set_fact tasks — nix_ad_resolvers must reference nix_upstream_resolvers
+    # AFTER it is defined; referencing it in the same set_fact task causes "undefined" errors.
+    - name: Build upstream resolver list
       ansible.builtin.set_fact:
         nix_upstream_resolvers: >-
           {{
@@ -85,6 +97,9 @@
               + (nix_resolved_dns.stdout_lines | default([]) | map('trim') | reject('equalto', '') | reject('equalto', '127.0.0.53') | list)
             ) | unique
           }}
+
+    - name: Build AD resolver list (team DC first + upstream, deduplicated)
+      ansible.builtin.set_fact:
         nix_ad_resolvers: "{{ ([team_domain_controller_ip] + nix_upstream_resolvers) | unique }}"
 
     - name: Assert upstream DNS is available (OpenStack env requirement)
