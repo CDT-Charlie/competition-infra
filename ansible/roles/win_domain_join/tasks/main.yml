@@ -1,0 +1,23 @@
+---
+# Join a Windows Server member to AD (run only after the team DC exists).
+# Requires: team_domain_controller_ip, ad_domain, ad_domain_join, windows_dc.netbios_name
+
+- name: Join Windows Server to Active Directory
+  when: windows_ad_domain_join | default(false)
+  block:
+    - name: Point DNS at team domain controller
+      ansible.windows.win_powershell:
+        script: |
+          $dcIP = "{{ team_domain_controller_ip }}"
+          Get-NetAdapter | Where-Object { $_.Status -eq 'Up' } | ForEach-Object {
+            Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ServerAddresses @($dcIP, '1.1.1.1')
+          }
+
+    - name: Join Active Directory domain
+      microsoft.ad.membership:
+        dns_domain_name: "{{ ad_domain }}"
+        domain_admin_user: "{{ windows_dc.netbios_name }}\\{{ ad_domain_join.username }}"
+        domain_admin_password: "{{ ad_domain_join.password }}"
+        domain_server: "{{ team_domain_controller_ip }}"
+        state: domain
+        reboot: true

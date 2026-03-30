@@ -1,0 +1,37 @@
+---
+# Name: Bryant Chang
+# Email: bc9028@rit.edu
+# Date: February 4, 2026
+# Assignment: CDT HW 2
+
+# This playbook deploys and configures rsyslog on designated client machines
+# Clients forward their logs to the central log server
+- name: Configure rsyslog clients
+  hosts: syslog_clients
+  become: true
+
+  tasks:
+    - name: Install rsyslog
+      package:
+        name: rsyslog
+        state: present
+
+    - name: Enable rsyslog service
+      service:
+        name: rsyslog
+        enabled: yes
+        state: started
+
+    - name: Configure log forwarding to central server # This forwards ALL logs for ALL services
+      copy:
+        dest: /etc/rsyslog.d/90-forward.conf
+        mode: '0644'
+        content: |
+          *.* @@{{ hostvars[groups['syslog_central'][0]].ansible_host | default(groups['syslog_central'][0]) }}:514
+      notify: Restart rsyslog
+
+  handlers:
+    - name: Restart rsyslog
+      service:
+        name: rsyslog
+        state: restarted

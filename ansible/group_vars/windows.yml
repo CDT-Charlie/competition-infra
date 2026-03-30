@@ -1,6 +1,9 @@
 ---
 # Windows-specific variables
 
+# Same FQDN as windows_dc.domain_name (explicit for templating order).
+ad_domain: "lakeplacid.local"
+
 # Windows Domain Controller + DNS
 windows_dc:
   domain_name: "lakeplacid.local"

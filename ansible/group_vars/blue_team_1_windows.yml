@@ -1,19 +1,6 @@
-blue_team_admin_users:
-  - herb_brooks
-  - craig_patrick
-  - jimmy_carter
-  - eruzione
-  - jim_craig
-
-blue_team_local_users:
-  - rob_mclanahan
-  - mark_johnson
-  - ken_morrow
-  - dave_silk
-  - jack_oh_callahan
-  - dave_christian
-  - buzz_schneider
-  - bob_suter
+---
+team_domain_controller_ip: "10.100.2.11"
+windows_ad_domain_join: true
 
 # AD users provisioned on the team DC. is_admin: true -> Domain Admins; false -> standard domain user (Domain Users).
 windows_domain_team_users:

@@ -4,12 +4,14 @@ This directory contains Ansible playbooks and roles for deploying cyber competit
 
 ## Role Structure
 
-All roles follow a simplified structure with only two directories:
+Most roles use a small layout with `tasks/` (and `files/` when needed). Some roles also ship **`defaults/main.yml`** or **`handlers/main.yml`** (for example **`nix_grafana`**).
 
 ```
 role_name/
 ├── tasks/
-│   └── main.yml      # All tasks for the role
+│   └── main.yml      # Role entrypoint (may include_tasks other YAML in the same folder)
+├── handlers/         # Optional (e.g. service restarts)
+├── defaults/         # Optional (fallback variables)
 └── files/            # Static files (if needed)
 ```
 
@@ -28,10 +30,9 @@ role_name/
 
 3. **Install Required Collections**
    ```bash
-   ansible-galaxy collection install microsoft.ad
-   ansible-galaxy collection install community.windows
-   ansible-galaxy collection install community.docker
+   ansible-galaxy collection install -r requirements.yml
    ```
+   That installs the versions listed in `requirements.yml` (Windows, Microsoft AD, Docker, etc.).
 
 4. **Configure Inventory**
    Create or edit `inventory.yml` with your target hosts:
@@ -211,23 +212,35 @@ ansible-playbook -i inventory.yml roles/win_dc_dns/deploy_dc.yml -e windows_dc_d
 **Files:**
 - `files/dovecot.conf` - Dovecot configuration
 
-#### `nix_monitoring`
-**Purpose:** Deploy Grafana monitoring and rsyslog logging  
+#### `nix_grafana`
+**Purpose:** Install Grafana from the official APT repo and tune core `[server]` settings.
+
 **Deploys:**
-- Grafana dashboard
-- rsyslog (server or client mode)
-- Log rotation (server mode)
+- Prerequisite packages (`apt-transport-https`, `ca-certificates`, `curl`, `gnupg`)
+- Grafana signing key under `/usr/share/keyrings/grafana.asc` and `deb [signed-by=…] https://apt.grafana.com stable main`
+- `grafana` package
+- `grafana.ini` lines for **`http_port`**, **`domain`**, and **`root_url`** (via `ansible.builtin.lineinfile`)
+- Optional **`GF_SECURITY_ADMIN_*`** in `/etc/default/grafana-server` when that file exists (after package install)
+- `grafana-server` enabled and started; handler restarts on config changes
 
-**Variables:** See `group_vars/linux.yml` → `grafana` and `rsyslog`
+**Variables:** `site.yml` maps `group_vars/linux.yml` → `grafana` into flat role vars: `grafana_http_port`, `grafana_domain`, `grafana_root_url`, `grafana_admin_user`, `grafana_admin_password`. Defaults are in `roles/nix_grafana/defaults/main.yml`.
 
-**Inventory Groups:**
-- `monitoring_server` - Server mode (receives logs)
-- `syslog_central` - Dedicated rsyslog server hosts
-- `blue_linux:!syslog_central` - rsyslog forwarding clients
+**Inventory Group:** `monitoring_server` (see `site.yml`; Grafana play also enables **`nix_rsyslog`** in server mode on the same hosts if you want a combined monitoring + log receiver).
 
-**Configuration:**
-- Set `rsyslog_mode: "server"` for server mode
-- Set `rsyslog_mode: "client"` for client mode
+#### `nix_rsyslog`
+**Purpose:** Centralized rsyslog—**one TCP receiver** and clients that forward everything to it.
+
+**Task layout:** Implementations live in split files under `roles/nix_rsyslog/tasks/`:
+- **`c_syslog.yml`** — central server: install/enable rsyslog, `/var/log/remote`, **imtcp** listener on **port 514**, per-host/program log paths, drop noisy **ansible** program logs, **logrotate** for remote logs (size **100k**, **hourly**, compress, two rotations).
+- **`cli_syslog.yml`** — clients: install/enable rsyslog, **`90-forward.conf`** forwarding **`*.*`** via TCP (`@@`) to the first host in inventory group **`syslog_central`**.
+
+Those files were written as standalone plays (`hosts: syslog_central` / `hosts: syslog_clients`). **`site.yml`** drives the same behavior through inventory groups and the play variable **`rsyslog_mode`** (`"server"` or `"client"`): `syslog_central`, `monitoring_server` (with `rsyslog_mode: "server"`), and `blue_linux:!syslog_central` (client). For the role to run correctly when included by `site.yml`, **`tasks/main.yml` must `include_tasks` the server or client task list according to `rsyslog_mode`** (or inline equivalent tasks). See also `roles/nix_rsyslog/README.md` for paths and rotation behavior.
+
+**Variables:** Optional tuning in `group_vars/linux.yml` → `rsyslog`; forwarding resolution requires at least one host in **`syslog_central`** so clients can target `groups['syslog_central'][0]`.
+
+**Inventory groups (typical):**
+- **`syslog_central`** / **`monitoring_server`** — receiver (`rsyslog_mode: "server"`)
+- **`blue_linux:!syslog_central`** — forwarders (`rsyslog_mode: "client"`)
 
 ## Variable Management
 
@@ -238,10 +251,10 @@ Variables are organized in `group_vars/`:
 - **`all.yml`** - Common variables for all hosts
 - **`windows.yml`** - Windows-specific variables
 - **`linux.yml`** - Linux-specific variables
-- **`blue_linux.yml`** - Blue Team Linux connection/bootstrap settings
-- **`blue_windows.yml`** - Blue Team Windows connection/bootstrap settings
-- **`blue_team_1.yml`** - Blue Team 1 admin/local user lists
-- **`blue_team_2.yml`** - Blue Team 2 admin/local user lists
+- **`blue_linux.yml`** - Blue Team Linux connection/bootstrap (`cyberrange`) and `nix_ad_domain_join`
+- **`blue_windows.yml`** - Blue Team Windows WinRM settings
+- **`blue_team_1_linux.yml`** / **`blue_team_2_linux.yml`** - Team DC IP for DNS/realm, roster name lists (reference)
+- **`blue_team_1_windows.yml`** / **`blue_team_2_windows.yml`** - Team DC IP, `windows_ad_domain_join`, `windows_domain_team_users` for the DC role
 
 ### Variable Structure
 
@@ -259,6 +272,8 @@ windows_dc:
 grafana:
   http_port: 3000
   domain: "CharlieGreyTeam"
+  root_url: "http://CharlieGreyTeam:3000/"
+  admin_user: "admin"
   admin_password: "Password123!"
   # ...
 ```
@@ -287,8 +302,8 @@ Recommended inventory groups:
 - `mcp_hosts` - Reserved group for future MCP role
 - `webservers` - Web stack hosts
 - `mail` - Mail servers
-- `monitoring_server` - Grafana hosts
-- `syslog_central` - rsyslog central servers
+- `monitoring_server` - Grafana + rsyslog server (`nix_grafana` + `nix_rsyslog`)
+- `syslog_central` - Dedicated rsyslog **receiver** (TCP 514; logs under `/var/log/remote/` on that host)
 
 ## Testing
 
@@ -314,7 +329,7 @@ ansible-playbook -i inventory.yml site.yml --limit windows_dc --check
 
 ## Design Principles
 
-1. **Simple Structure** - Only `tasks/` and `files/` folders
+1. **Simple Structure** - Prefer `tasks/` and `files/`; add `handlers/` or `defaults/` when a role needs them
 2. **No Templates** - Use `copy` with `content:` for variable substitution
 3. **Centralized Variables** - All variables in `group_vars/`
 4. **Idempotent** - Safe to run multiple times
@@ -366,12 +381,6 @@ ansible-playbook -i inventory.yml site.yml --limit hostname
 # Check what would change
 ansible-playbook -i inventory.yml site.yml --check --diff
 ```
-
-## Documentation
-
-- **`RESTRUCTURE_COMPLETE.md`** - Details of the restructure implementation
-- **`RESTRUCTURE_PLAN_SIMPLE.md`** - Original restructure plan
-- **`RESTRUCTURE_SIMPLE_REF.md`** - Quick reference for restructure
 
 ## Notes
 

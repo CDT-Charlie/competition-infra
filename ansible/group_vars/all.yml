@@ -21,3 +21,10 @@ blue_shared_users:
 # Password applied to all Blue Team role-specific users.
 blue_team_user_password: "Change.me123!"
 
+# Active Directory (used for realm / domain join on members). Must match windows_dc.domain_name.
+ad_domain: "lakeplacid.local"
+# Credentials for joining members to AD (e.g. Domain Admin).
+ad_domain_join:
+  username: "greyteam"
+  password: "Hockey123!"
+

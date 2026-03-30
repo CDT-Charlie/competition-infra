@@ -7,3 +7,6 @@ ansible_become: true
 ansible_become_method: sudo
 ansible_become_password: "{{ bootstrap_user.password }}"
 ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+
+# Join Linux hosts to AD via realmd/sssd in nix_base (after DC is deployed).
+nix_ad_domain_join: true

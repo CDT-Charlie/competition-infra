@@ -1,19 +1,6 @@
-blue_team_admin_users:
-  - tikhonov
-  - kulagin
-  - brezhnev
-  - tretiak
-  - larionov
-
-blue_team_local_users:
-  - zhukov
-  - gusev
-  - makarov
-  - fetisov
-  - kasatonov
-  - krutov
-  - lebedev
-  - vasiliev
+---
+team_domain_controller_ip: "10.100.3.11"
+windows_ad_domain_join: true
 
 # AD users provisioned on the team DC. is_admin: true -> Domain Admins; false -> standard domain user (Domain Users).
 windows_domain_team_users:

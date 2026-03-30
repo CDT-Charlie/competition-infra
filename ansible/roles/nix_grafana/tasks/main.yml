@@ -1,0 +1,70 @@
+---
+# Grafana — see group_vars/linux.yml → grafana; play may override grafana_* flat vars.
+
+- name: Install prerequisite packages for Grafana APT repo
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: true
+
+- name: Fetch Grafana APT signing key
+  ansible.builtin.get_url:
+    url: https://apt.grafana.com/gpg.key
+    dest: /usr/share/keyrings/grafana.asc
+    mode: "0644"
+
+- name: Add Grafana APT repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/grafana.asc] https://apt.grafana.com stable main"
+    state: present
+    filename: grafana
+
+- name: Install Grafana package
+  ansible.builtin.apt:
+    name: grafana
+    state: present
+    update_cache: true
+
+- name: Configure grafana.ini [server] settings
+  ansible.builtin.lineinfile:
+    path: /etc/grafana/grafana.ini
+    regexp: '^;?{{ item.key }}\s*='
+    line: "{{ item.key }} = {{ item.value }}"
+    backrefs: false
+  loop:
+    - { key: "http_port", value: "{{ grafana_http_port }}" }
+    - { key: "domain", value: "{{ grafana_domain }}" }
+    - { key: "root_url", value: "{{ grafana_root_url }}" }
+  notify: Restart grafana
+
+- name: Check for Grafana package env file
+  ansible.builtin.stat:
+    path: /etc/default/grafana-server
+  register: nix_grafana_default_env
+
+- name: Set Grafana admin user (package env file)
+  ansible.builtin.lineinfile:
+    path: /etc/default/grafana-server
+    regexp: '^#?GF_SECURITY_ADMIN_USER='
+    line: "GF_SECURITY_ADMIN_USER={{ grafana_admin_user }}"
+  notify: Restart grafana
+  when: nix_grafana_default_env.stat.exists
+
+- name: Set Grafana admin password (package env file)
+  ansible.builtin.lineinfile:
+    path: /etc/default/grafana-server
+    regexp: '^#?GF_SECURITY_ADMIN_PASSWORD='
+    line: "GF_SECURITY_ADMIN_PASSWORD={{ grafana_admin_password }}"
+  no_log: true
+  notify: Restart grafana
+  when: nix_grafana_default_env.stat.exists
+
+- name: Ensure Grafana service is enabled and running
+  ansible.builtin.systemd:
+    name: grafana-server
+    enabled: true
+    state: started

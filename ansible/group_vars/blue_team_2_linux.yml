@@ -1,0 +1,19 @@
+---
+team_domain_controller_ip: "10.100.3.11"
+
+blue_team_admin_users:
+  - tikhonov
+  - kulagin
+  - brezhnev
+  - tretiak
+  - larionov
+
+blue_team_local_users:
+  - zhukov
+  - gusev
+  - makarov
+  - fetisov
+  - kasatonov
+  - krutov
+  - lebedev
+  - vasiliev

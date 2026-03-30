@@ -15,3 +15,81 @@
       - gnupg
       - software-properties-common
     state: present
+
+# --- Active Directory (realmd/sssd): domain users log in with AD accounts ---
+- name: Install packages for AD domain join
+  ansible.builtin.apt:
+    name:
+      - realmd
+      - sssd
+      - sssd-tools
+      - libnss-sss
+      - libpam-sss
+      - adcli
+      - samba-common-bin
+      - oddjob-mkhomedir
+    state: present
+  when: nix_ad_domain_join | default(false)
+
+- name: Check current realm membership
+  ansible.builtin.command: realm list
+  register: nix_realm_list
+  changed_when: false
+  failed_when: false
+  when: nix_ad_domain_join | default(false)
+
+- name: Start oddjobd for mkhomedir (if unit exists)
+  ansible.builtin.systemd:
+    name: oddjobd
+    state: started
+    enabled: true
+  when: nix_ad_domain_join | default(false)
+  failed_when: false
+
+- name: Point DNS at team domain controller for realm discovery
+  ansible.builtin.command: resolvectl dns {{ ansible_default_ipv4.interface | default('eth0') }} {{ team_domain_controller_ip }} 1.1.1.1
+  when:
+    - nix_ad_domain_join | default(false)
+    - ad_domain | lower not in (nix_realm_list.stdout | default('') | lower)
+  changed_when: true
+  failed_when: false
+
+- name: Join system to Active Directory domain
+  ansible.builtin.shell: |
+    set -euo pipefail
+    printf '%s\n' '{{ ad_domain_join.password }}' | realm join -U {{ ad_domain_join.username | quote }} {{ ad_domain | quote }}
+  args:
+    executable: /bin/bash
+  no_log: true
+  when:
+    - nix_ad_domain_join | default(false)
+    - ad_domain | lower not in (nix_realm_list.stdout | default('') | lower)
+  register: nix_realm_join
+
+- name: Create home directories for domain logins
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-session
+    line: "session optional pam_mkhomedir.so skel=/etc/skel umask=0022"
+    state: present
+    create: false
+  when: nix_ad_domain_join | default(false)
+  failed_when: false
+
+- name: Allow Domain Admins full sudo via SSSD
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/99-ad-domain-admins
+    mode: "0440"
+    content: |
+      %Domain\ Admins@{{ ad_domain }} ALL=(ALL:ALL) ALL
+    validate: "/usr/sbin/visudo -cf %s"
+  when: nix_ad_domain_join | default(false)
+
+- name: Restart SSSD after domain join
+  ansible.builtin.service:
+    name: sssd
+    state: restarted
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_realm_join is defined
+    - nix_realm_join is changed
+  failed_when: false

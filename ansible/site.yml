@@ -1,11 +1,11 @@
 ---
 # Main competition playbook
-# Deploys available scored services and Blue Team user accounts in one run.
+# Order: bootstrap Windows -> promote DCs -> join members to AD -> services -> cleanup bootstrap users.
 #
 # Alternative methods:
 # - Deploy everything: ansible-playbook -i inventory.yml site.yml
 # - Deploy one service: ansible-playbook -i inventory.yml site.yml --limit <group>
-# - Deploy only users:   ansible-playbook -i inventory.yml blue_team_users.yml
+# - Cleanup users only: ansible-playbook -i inventory.yml blue_team_users.yml
 #
 # Services intentionally commented out are planned but not yet implemented.
 
@@ -21,6 +21,32 @@
   roles:
     - win_base
     - win_winrm
+
+# Must run before member domain join (DNS + AD).
+- name: Deploy Windows DNS / domain controller
+  hosts: windows_dc
+  vars:
+    domain_name: "{{ windows_dc.domain_name }}"
+    netbios_name: "{{ windows_dc.netbios_name }}"
+    safe_mode_password: "{{ windows_dc.safe_mode_password }}"
+    dc_hostname: "{{ windows_dc.dc_hostname | default(inventory_hostname) }}"
+    ou_name: "{{ windows_dc.ou_name }}"
+    group_name: "{{ windows_dc.group_name }}"
+    deployment_team: >-
+      {{
+        dc_team
+        if (windows_dc_deployment_team | default(windows_dc.deployment_team | default('host_team'))) == 'host_team'
+        else (windows_dc_deployment_team | default(windows_dc.deployment_team))
+      }}
+  roles:
+    - win_base
+    - win_dc_dns
+
+- name: Join Windows member servers to Active Directory
+  hosts: "blue_windows:!windows_dc"
+  gather_facts: true
+  roles:
+    - win_domain_join
 
 - name: Deploy Windows SMB scored service
   hosts: windows_fileserver
@@ -61,6 +87,7 @@
   roles:
     - nix_base
     - nix_mail
+
 - name: Deploy Linux Grafana scored service
   hosts: monitoring_server
   become: yes
@@ -73,7 +100,8 @@
     rsyslog_mode: "server"
   roles:
     - nix_base
-    - nix_monitoring
+    - nix_grafana
+    - nix_rsyslog
 
 - name: Deploy Linux rsyslog scored service (central)
   hosts: syslog_central
@@ -82,7 +110,7 @@
     rsyslog_mode: "server"
   roles:
     - nix_base
-    - nix_monitoring
+    - nix_rsyslog
 
 - name: Configure Linux rsyslog forwarding clients
   hosts: "blue_linux:!syslog_central"
@@ -91,28 +119,7 @@
     rsyslog_mode: "client"
   roles:
     - nix_base
-    - nix_monitoring
-
-# DNS role currently maps to win_dc_dns (AD DS + DNS). Enabled because role exists.
-- name: Deploy Windows DNS scored service
-  hosts: windows_dc
-  vars:
-    domain_name: "{{ windows_dc.domain_name }}"
-    netbios_name: "{{ windows_dc.netbios_name }}"
-    safe_mode_password: "{{ windows_dc.safe_mode_password }}"
-    # Defaults to inventory name (e.g. blue1-bardown) so each DC keeps a unique hostname.
-    dc_hostname: "{{ windows_dc.dc_hostname | default(inventory_hostname) }}"
-    ou_name: "{{ windows_dc.ou_name }}"
-    group_name: "{{ windows_dc.group_name }}"
-    deployment_team: >-
-      {{
-        dc_team
-        if (windows_dc_deployment_team | default(windows_dc.deployment_team | default('host_team'))) == 'host_team'
-        else (windows_dc_deployment_team | default(windows_dc.deployment_team))
-      }}
-  roles:
-    - win_base
-    - win_dc_dns
+    - nix_rsyslog
 
 # - name: Deploy Linux MCP scored service
 #   hosts: mcp_hosts
