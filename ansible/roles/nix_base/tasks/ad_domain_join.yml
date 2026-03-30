@@ -99,13 +99,14 @@
   ansible.builtin.shell: |
     set -euo pipefail
     realm_name='{{ ad_domain }}'
+    dc_server='{{ team_domain_controller_ip }}'
     password='{{ ad_domain_join.password }}'
     u1='{{ ad_domain_join.username }}'
     u2='{{ ad_domain_join.username }}@{{ ad_domain }}'
     err="$(mktemp)"
 
     for u in "$u1" "$u2"; do
-      if printf '%s\n' "$password" | realm join -U "$u" "$realm_name" 2>"$err"; then
+      if printf '%s\n' "$password" | realm join --server="$dc_server" -U "$u" "$realm_name" 2>"$err"; then
         echo "joined_with=$u"
         exit 0
       fi
