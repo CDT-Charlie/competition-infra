@@ -60,7 +60,7 @@ role_name/
 ansible-playbook -i inventory.yml site.yml
 ```
 
-`inventory.yml` is the primary Blue Team competition inventory (including user provisioning and bootstrap user removal).
+`inventory.yml` is the primary Blue Team competition inventory (including user provisioning).
 
 `site.yml` defaults Domain Controller deployment scope to each DC host's own team (`dc_team`), so no extra argument is required for normal runs.
 
@@ -93,9 +93,6 @@ ansible-playbook -i inventory.yml site.yml --limit monitoring_server
 
 # Linux rsyslog central service
 ansible-playbook -i inventory.yml site.yml --limit syslog_central
-
-# Users only (Windows bootstrap cleanup first, then Linux `cyberrange` removal last)
-ansible-playbook -i inventory.yml blue_team_users.yml
 ```
 
 ### Deploy SSH public keys (Linux)

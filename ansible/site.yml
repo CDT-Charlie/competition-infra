@@ -1,12 +1,11 @@
 ---
 # Main competition playbook
-# Order: bootstrap Windows -> promote DCs -> join members to AD -> services -> cleanup (Windows first,
-# then Linux cyberrange last — see blue_team_users.yml).
+# Order: bootstrap Windows -> promote DCs -> join members to AD -> services.
+# Domain users: win_dc_dns (DC) + AD join for members (Linux/Windows); no separate user playbook.
 #
 # Alternative methods:
 # - Deploy everything: ansible-playbook -i inventory.yml site.yml
 # - Deploy one service: ansible-playbook -i inventory.yml site.yml --limit <group>
-# - Cleanup users only: ansible-playbook -i inventory.yml blue_team_users.yml
 #
 # Services intentionally commented out are planned but not yet implemented.
 
@@ -131,4 +130,3 @@
 #   hosts: windows_iis
 #   # TODO: enable when IIS role/playbook exists.
 
-- import_playbook: blue_team_users.yml
