@@ -98,6 +98,77 @@ ansible-playbook -i inventory.yml site.yml --limit syslog_central
 ansible-playbook -i inventory.yml blue_team_users.yml
 ```
 
+### Deploy SSH public keys (Linux)
+
+Before relying on key-based SSH for Blue Team Linux hosts, push your controller’s public key onto the **`bootstrap_user`** account (see `group_vars/all.yml` → `bootstrap_user`, typically **`cyberrange`** with the password from `group_vars/blue_linux.yml`).
+
+**Default behavior:** the playbook adds **`-o PreferredAuthentications=password -o PubkeyAuthentication=no`** so Ansible can log in with **only the password** (no key on the controller yet). That matches typical server images.
+
+**Hosts that require public key *and* password:** some desktops or hardened images set sshd **`AuthenticationMethods publickey,password`** (both). Then a client that disables pubkey **cannot** authenticate, so manual tests like `ssh -o PubkeyAuthentication=no cyberrange@…` will always fail. For those hosts you must either:
+
+- **One-time relax sshd** (console): e.g. set **`AuthenticationMethods any`** or **`password`** until keys are deployed, then restore policy; or  
+- **Use an identity already in `authorized_keys`** on the VM: run the deploy playbook with **`deploy_ssh_force_password_only=false`** and pass **`ansible_ssh_private_key_file`** for that private key. Ansible will use **pubkey + password** (still needs **`sshpass`** for the password leg when `ansible_password` is set).
+
+**Control node prerequisite:** install **`sshpass`** on the machine where you run Ansible whenever **`ansible_password`** is used. Without it, you will see: *“you must install the sshpass program”*.
+
+```bash
+# Debian / Ubuntu
+sudo apt install -y sshpass
+
+# RHEL / Fedora
+sudo dnf install -y sshpass
+```
+
+**Playbook:** `deploy_ssh_key.yml`  
+**Defaults:** hosts = inventory group **`blue_linux`** (override with **`-e target_group=…`**), key file passed explicitly or chosen by the helper script.
+
+**Helper script:** `ansible/scripts/deploy-ssh-keys.sh`. It changes into `ansible/` before running the playbook, so you can invoke it from `ansible/` as `./scripts/deploy-ssh-keys.sh` or from the repo root as `ansible/scripts/deploy-ssh-keys.sh`.
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
+cd ansible
+chmod +x scripts/deploy-ssh-keys.sh
+./scripts/deploy-ssh-keys.sh ~/.ssh/id_ed25519.pub
+INVENTORY=my-inventory.yml ./scripts/deploy-ssh-keys.sh
+./scripts/deploy-ssh-keys.sh -- --limit blue_team_1_linux
+```
+
+**Multi-method sshd** (pubkey + password required): use a private key that is **already trusted** on the target, and allow pubkey in SSH options:
+
+```bash
+cd ansible
+DEPLOY_SSH_FORCE_PASSWORD_ONLY=false \
+ANSIBLE_SSH_PRIVATE_KEY_FILE=~/.ssh/image_bootstrap_key \
+  ./scripts/deploy-ssh-keys.sh ~/.ssh/id_ed25519.pub
+```
+
+Or with `ansible-playbook` directly:
+
+```bash
+ansible-playbook -i inventory.yml deploy_ssh_key.yml \
+  -e ssh_public_key_file=$HOME/.ssh/id_ed25519.pub \
+  -e deploy_ssh_force_password_only=false \
+  -e ansible_ssh_private_key_file=$HOME/.ssh/image_bootstrap_key
+```
+
+The script sets **`SSH_PUBLIC_KEY_FILE`**, tries common paths (`~/.ssh/id_ed25519.pub`, `id_rsa.pub`, and Windows **`USERPROFILE`**), and passes **`target_group`** (default **`blue_linux`**, overridable with env **`TARGET_GROUP`**) into the playbook.
+
+**Manual run:**
+
+```bash
+cd ansible
+ansible-playbook -i inventory.yml deploy_ssh_key.yml -e ssh_public_key_file=$HOME/.ssh/id_ed25519.pub
+ansible-playbook -i inventory.yml deploy_ssh_key.yml -e ssh_public_key_file=$HOME/.ssh/id_ed25519.pub -e target_group=blue_team_2_linux
+```
+
+Afterward, point Ansible at your private key, for example:
+
+```bash
+ansible-playbook -i inventory.yml site.yml --private-key ~/.ssh/id_ed25519
+```
+
+Or set **`ansible_ssh_private_key_file`** in `group_vars/blue_linux.yml` (or host vars) so you do not need **`--private-key`** every time.
+
 ### Standalone Role Playbook
 
 ```bash

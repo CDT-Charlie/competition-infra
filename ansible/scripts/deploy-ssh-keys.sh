@@ -8,6 +8,11 @@
 #   INVENTORY=../other-inventory.yml ./scripts/deploy-ssh-keys.sh
 #   ./scripts/deploy-ssh-keys.sh -- --limit blue_team_1_linux
 #
+# Hosts with sshd AuthenticationMethods publickey,password (both required): use an identity that is
+# already in authorized_keys on the target, then disable password-only forcing:
+#   DEPLOY_SSH_FORCE_PASSWORD_ONLY=false ANSIBLE_SSH_PRIVATE_KEY_FILE=~/.ssh/image_bootstrap_key \
+#     ./scripts/deploy-ssh-keys.sh ~/.ssh/id_ed25519.pub
+#
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,11 +54,20 @@ fi
 echo "Using public key: $KEY"
 echo "Inventory: $INVENTORY  |  Host pattern group: $TARGET_GROUP"
 
+EXTRA_VARS=(-e "ssh_public_key_file=$KEY" -e "target_group=$TARGET_GROUP")
+if [[ "${DEPLOY_SSH_FORCE_PASSWORD_ONLY:-true}" == "false" ]]; then
+  EXTRA_VARS+=(-e "deploy_ssh_force_password_only=false")
+  echo "deploy_ssh_force_password_only=false (pubkey allowed for multi-method sshd)"
+fi
+if [[ -n "${ANSIBLE_SSH_PRIVATE_KEY_FILE:-}" ]]; then
+  EXTRA_VARS+=(-e "ansible_ssh_private_key_file=${ANSIBLE_SSH_PRIVATE_KEY_FILE}")
+  echo "ansible_ssh_private_key_file=${ANSIBLE_SSH_PRIVATE_KEY_FILE}"
+fi
+
 ansible-playbook \
   -i "$INVENTORY" \
   deploy_ssh_key.yml \
-  -e "ssh_public_key_file=$KEY" \
-  -e "target_group=$TARGET_GROUP" \
+  "${EXTRA_VARS[@]}" \
   "$@"
 
 echo

@@ -1,6 +1,16 @@
 ---
 # Install your SSH public key on Linux targets for password-less Ansible runs.
 #
+# Requires sshpass on the Ansible control node when using ansible_password (see group_vars/blue_linux.yml).
+#
+# Default mode forces password-only SSH (no pubkey), for fresh hosts with PasswordAuthentication.
+#
+# If sshd uses AuthenticationMethods publickey,password (both required), password-only clients cannot
+# connect. Then run with:
+#   -e deploy_ssh_force_password_only=false
+#   -e ansible_ssh_private_key_file=/path/to/key_already_in_authorized_keys
+# (plus ansible_password from group_vars for the second factor, if required).
+#
 # Usage (from ansible/):
 #   ansible-playbook -i inventory.yml deploy_ssh_key.yml -e ssh_public_key_file=$HOME/.ssh/id_ed25519.pub
 #
@@ -11,7 +21,11 @@
   gather_facts: false
   become: false
   vars:
-    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o PreferredAuthentications=password -o PubkeyAuthentication=no"
+    # When true: only password auth (typical bootstrap). When false: allow pubkey so sshd can require publickey+password.
+    deploy_ssh_force_password_only: true
+    deploy_ssh_args_password_only: "-o StrictHostKeyChecking=no -o PreferredAuthentications=password -o PubkeyAuthentication=no"
+    deploy_ssh_args_pubkey_ok: "-o StrictHostKeyChecking=no"
+    ansible_ssh_common_args: "{{ (deploy_ssh_force_password_only | bool) | ternary(deploy_ssh_args_password_only, deploy_ssh_args_pubkey_ok) }}"
   tasks:
     - name: Ensure bootstrap user has controller public key
       ansible.builtin.authorized_key:
