@@ -40,7 +40,8 @@
   when: windows_ad_domain_join | default(false)
   ansible.windows.win_group_membership:
     name: Administrators
-    members: "{{ ([windows_dc.netbios_name + '\\' + item.sam]) }}"
+    members:
+      - "{{ windows_dc.netbios_name }}\\{{ item.sam }}"
     state: present
   loop: "{{ windows_domain_team_users | default([]) | selectattr('is_admin', 'equalto', true) | list }}"
   loop_control:
@@ -51,7 +52,8 @@
   when: windows_ad_domain_join | default(false)
   ansible.windows.win_group_membership:
     name: Remote Desktop Users
-    members: "{{ ([windows_dc.netbios_name + '\\' + item.sam]) }}"
+    members:
+      - "{{ windows_dc.netbios_name }}\\{{ item.sam }}"
     state: present
   loop: "{{ windows_domain_team_users | default([]) }}"
   loop_control:
