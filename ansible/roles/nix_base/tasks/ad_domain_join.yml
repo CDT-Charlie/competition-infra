@@ -30,40 +30,78 @@
   failed_when: false
   when: nix_probe_nova_mirror.rc != 0
 
-- name: Apply openstack_dns_servers to default link when apt mirrors are unreachable
-  ansible.builtin.command:
-    argv: "{{ ['resolvectl', 'dns', (nix_ad_pre_pkg_iface.stdout | trim)] + (openstack_dns_servers | default([]) | list) }}"
+# Merge explicit openstack_dns_servers with per-link discovery (nmcli / resolvectl). No hard fail —
+# 20.04 Desktop often has usable DHCP DNS in nmcli even when openstack_dns_servers is unset.
+- name: Recover DNS for apt when cloud/archive mirrors do not resolve
   when:
-    - openstack_dns_servers | default([]) | length > 0
     - nix_ad_pre_pkg_iface.stdout | default('') | trim | length > 0
     - nix_probe_nova_mirror.rc != 0
     - nix_probe_archive_ubuntu is not skipped
     - nix_probe_archive_ubuntu.rc != 0
-  changed_when: true
-  failed_when: false
+  block:
+    - name: Discover DNS via nmcli for pre-package apt recovery
+      ansible.builtin.shell: |
+        set -euo pipefail
+        nmcli -g IP4.DNS device show "{{ nix_ad_pre_pkg_iface.stdout | trim }}" 2>/dev/null \
+          | tr '|' '\n' \
+          | sed 's/[[:space:]]//g' \
+          | sed '/^$/d' \
+          || true
+      args:
+        executable: /bin/bash
+      register: nix_pkg_nmcli_dns
+      changed_when: false
+      failed_when: false
 
-- name: Flush systemd-resolved caches before AD package install
-  ansible.builtin.command: resolvectl flush-caches
-  changed_when: false
-  failed_when: false
-  when:
-    - openstack_dns_servers | default([]) | length > 0
-    - nix_probe_nova_mirror.rc != 0
-    - nix_probe_archive_ubuntu is not skipped
-    - nix_probe_archive_ubuntu.rc != 0
+    - name: Discover DNS via resolvectl per-link for pre-package apt recovery
+      ansible.builtin.shell: |
+        set -euo pipefail
+        resolvectl dns "{{ nix_ad_pre_pkg_iface.stdout | trim }}" 2>/dev/null \
+          | sed -E 's/.*: *//' \
+          | tr ' ' '\n' \
+          | sed '/^$/d' \
+          || true
+      args:
+        executable: /bin/bash
+      register: nix_pkg_resolved_dns
+      changed_when: false
+      failed_when: false
 
-- name: Fail with DNS guidance when AD packages cannot be fetched and openstack_dns_servers is unset
-  ansible.builtin.fail:
+    - name: Merge DNS candidates for apt (openstack + nmcli + resolvectl)
+      ansible.builtin.set_fact:
+        nix_ad_pkg_dns_candidates: >-
+          {{
+            (
+              (openstack_dns_servers | default([]))
+              + (nix_pkg_nmcli_dns.stdout_lines | default([]) | map('trim') | reject('equalto', '') | reject('equalto', '127.0.0.53') | list)
+              + (nix_pkg_resolved_dns.stdout_lines | default([]) | map('trim') | reject('equalto', '') | reject('equalto', '127.0.0.53') | list)
+            ) | unique | list
+          }}
+
+    - name: Apply merged DNS to default route interface for apt
+      ansible.builtin.command:
+        argv: "{{ ['resolvectl', 'dns', (nix_ad_pre_pkg_iface.stdout | trim)] + nix_ad_pkg_dns_candidates }}"
+      when: nix_ad_pkg_dns_candidates | length > 0
+      changed_when: true
+      failed_when: false
+
+    - name: Flush systemd-resolved caches after apt DNS recovery
+      ansible.builtin.command: resolvectl flush-caches
+      when: nix_ad_pkg_dns_candidates | length > 0
+      changed_when: false
+      failed_when: false
+
+- name: Warn when mirror DNS still broken and no resolver IPs were found to apply
+  ansible.builtin.debug:
     msg: >-
-      Cannot resolve Ubuntu package mirrors (nova.clouds.archive.ubuntu.com or archive.ubuntu.com).
-      Ubuntu 20.04 Desktop on OpenStack often hits this before AD join. Set openstack_dns_servers in
-      group_vars/all.yml to your environment resolvers, e.g. openstack_dns_servers: ['10.0.0.2'].
-      On the host: resolvectl status ; getent hosts archive.ubuntu.com
+      Could not resolve nova.clouds.archive.ubuntu.com or archive.ubuntu.com, and no DNS servers were
+      found from openstack_dns_servers, nmcli, or resolvectl. APT may still fail — set
+      openstack_dns_servers in group_vars/all.yml (e.g. ['10.0.0.2']). On host: resolvectl status ; nmcli dev show
   when:
-    - openstack_dns_servers | default([]) | length == 0
     - nix_probe_nova_mirror.rc != 0
     - nix_probe_archive_ubuntu is not skipped
     - nix_probe_archive_ubuntu.rc != 0
+    - nix_ad_pkg_dns_candidates | default([]) | length == 0
 
 - name: Install packages for AD domain join
   ansible.builtin.apt:
