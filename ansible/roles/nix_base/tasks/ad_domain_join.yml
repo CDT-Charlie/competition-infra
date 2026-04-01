@@ -5,6 +5,66 @@
 # - Route lakeplacid.local to team DC using split DNS
 # - Prefer strict per-DC targeting (adcli)
 
+# Ubuntu 20.04 OpenStack images often use nova.clouds.archive.ubuntu.com; if that and archive.ubuntu.com
+# do not resolve (stub resolver / wrong link DNS), apply openstack_dns_servers before apt.
+- name: Default IPv4 interface for pre-AD-package DNS recovery
+  ansible.builtin.shell: |
+    set -euo pipefail
+    ip -4 route show default | head -1 | awk '{for (i=1;i<=NF;i++) if ($i=="dev") {print $(i+1); exit}}'
+  args:
+    executable: /bin/bash
+  register: nix_ad_pre_pkg_iface
+  changed_when: false
+  failed_when: false
+
+- name: Probe DNS for OpenStack Ubuntu mirror host (sources.list on many cloud images)
+  ansible.builtin.command: getent hosts nova.clouds.archive.ubuntu.com
+  register: nix_probe_nova_mirror
+  changed_when: false
+  failed_when: false
+
+- name: Probe DNS for archive.ubuntu.com when cloud mirror host does not resolve
+  ansible.builtin.command: getent hosts archive.ubuntu.com
+  register: nix_probe_archive_ubuntu
+  changed_when: false
+  failed_when: false
+  when: nix_probe_nova_mirror.rc != 0
+
+- name: Apply openstack_dns_servers to default link when apt mirrors are unreachable
+  ansible.builtin.command:
+    argv: "{{ ['resolvectl', 'dns', (nix_ad_pre_pkg_iface.stdout | trim)] + (openstack_dns_servers | default([]) | list) }}"
+  when:
+    - openstack_dns_servers | default([]) | length > 0
+    - nix_ad_pre_pkg_iface.stdout | default('') | trim | length > 0
+    - nix_probe_nova_mirror.rc != 0
+    - nix_probe_archive_ubuntu is not skipped
+    - nix_probe_archive_ubuntu.rc != 0
+  changed_when: true
+  failed_when: false
+
+- name: Flush systemd-resolved caches before AD package install
+  ansible.builtin.command: resolvectl flush-caches
+  changed_when: false
+  failed_when: false
+  when:
+    - openstack_dns_servers | default([]) | length > 0
+    - nix_probe_nova_mirror.rc != 0
+    - nix_probe_archive_ubuntu is not skipped
+    - nix_probe_archive_ubuntu.rc != 0
+
+- name: Fail with DNS guidance when AD packages cannot be fetched and openstack_dns_servers is unset
+  ansible.builtin.fail:
+    msg: >-
+      Cannot resolve Ubuntu package mirrors (nova.clouds.archive.ubuntu.com or archive.ubuntu.com).
+      Ubuntu 20.04 Desktop on OpenStack often hits this before AD join. Set openstack_dns_servers in
+      group_vars/all.yml to your environment resolvers, e.g. openstack_dns_servers: ['10.0.0.2'].
+      On the host: resolvectl status ; getent hosts archive.ubuntu.com
+  when:
+    - openstack_dns_servers | default([]) | length == 0
+    - nix_probe_nova_mirror.rc != 0
+    - nix_probe_archive_ubuntu is not skipped
+    - nix_probe_archive_ubuntu.rc != 0
+
 - name: Install packages for AD domain join
   ansible.builtin.apt:
     name:
@@ -22,6 +82,11 @@
       - network-manager
       - libnss-extrausers
     state: present
+    update_cache: true
+  register: nix_ad_join_packages_apt
+  retries: 4
+  delay: 15
+  until: nix_ad_join_packages_apt is succeeded
 
 - name: Check current realm membership
   ansible.builtin.command: realm list

@@ -33,6 +33,42 @@
   changed_when: true
   failed_when: false
 
+# Ubuntu 20.04 OpenStack desktop: resolv.conf may not be stub-only yet mirrors still do not resolve.
+- name: Probe Ubuntu mirror DNS before common packages
+  ansible.builtin.command: getent hosts nova.clouds.archive.ubuntu.com
+  register: nix_main_probe_nova
+  changed_when: false
+  failed_when: false
+
+- name: Probe archive.ubuntu.com when cloud mirror host does not resolve
+  ansible.builtin.command: getent hosts archive.ubuntu.com
+  register: nix_main_probe_archive
+  changed_when: false
+  failed_when: false
+  when: nix_main_probe_nova.rc != 0
+
+- name: Recover per-link DNS for apt when mirrors do not resolve
+  ansible.builtin.command:
+    argv: "{{ ['resolvectl', 'dns', (nix_default_iface_pre_apt.stdout | trim)] + openstack_dns_servers }}"
+  when:
+    - openstack_dns_servers | default([]) | length > 0
+    - nix_default_iface_pre_apt.stdout | default('') | trim | length > 0
+    - nix_main_probe_nova.rc != 0
+    - nix_main_probe_archive is not skipped
+    - nix_main_probe_archive.rc != 0
+  changed_when: true
+  failed_when: false
+
+- name: Flush resolved caches after mirror DNS recovery
+  ansible.builtin.command: resolvectl flush-caches
+  changed_when: false
+  failed_when: false
+  when:
+    - openstack_dns_servers | default([]) | length > 0
+    - nix_main_probe_nova.rc != 0
+    - nix_main_probe_archive is not skipped
+    - nix_main_probe_archive.rc != 0
+
 # - name: Update apt cache (retry for transient mirror/DNS issues)
 #   ansible.builtin.apt:
 #     update_cache: true
