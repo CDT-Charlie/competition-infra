@@ -2,13 +2,13 @@
 # Author: Caroline Richards
 # Email: cpr9499@rit.edu
 
-# This playbook deploys a web stack on a Linux host with Nginx, MySQL, and PHP
+# This playbook deploys a web stack on a Linux host with Nginx, MariaDB, and PHP
 
-- name: Install Nginx, MySQL, and PHP packages
+- name: Install Nginx, MariaDB, and PHP packages
   apt: 
     name: 
       - nginx
-      - mysql-server
+      - mariadb-server
       - php-fpm
       - php-mysql
     state: present
@@ -64,29 +64,29 @@
     name: nginx
     state: restarted
 
-# MySQL Setup
-- name: Start and enable MySQL
+# MariaDB Setup
+- name: Start and enable MariaDB
   service:
-    name: mysql
+    name: mariadb
     state: started
     enabled: yes
 
 - name: Copy SQL setup script
   copy:
-    src: mysql_setup.sql
-    dest: /tmp/mysql_setup.sql
+    src: mariadb_setup.sql
+    dest: /tmp/mariadb_setup.sql
     mode: '0644'
 
 - name: Run SQL setup script
   mysql_db:
     name: miracle_ice
     state: import
-    target: /tmp/mysql_setup.sql
+    target: /tmp/mariadb_setup.sql
 
 - name: Create Database user
   mysql_user:
-    name: "{{ web_stack.mysql.app_user }}"
-    password: "{{ web_stack.mysql.app_password }}"
+    name: "{{ web_stack.mariadb.app_user }}"
+    password: "{{ web_stack.mariadb.app_password }}"
     priv: "miracle_ice.*:ALL"
     state: present
 
