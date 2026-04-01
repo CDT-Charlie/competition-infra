@@ -72,10 +72,10 @@
 
 # MySQL Setup
 - name: Install python MySQL dependency
-    apt:
-      name: python3-pymysql
-      state: present
-      
+  apt:
+    name: python3-pymysql
+    state: present
+
 - name: Start and enable MySQL
   service:
     name: mysql
