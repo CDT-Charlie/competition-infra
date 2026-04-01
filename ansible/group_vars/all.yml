@@ -40,6 +40,10 @@ openstack_dns_servers: []
 # - realm: DNS-based realm join path
 nix_ad_join_method: "adcli"
 
+# Mirror allowlisted domain users into libnss-extrausers (flat file under /var/lib/extrausers/passwd).
+# NSS merges these with local /etc/passwd — not written into /etc/passwd itself (unsafe for AD UIDs).
+nix_ad_nss_extrausers: true
+
 # Active Directory (used for realm / domain join on members). Must match windows_dc.domain_name.
 ad_domain: "lakeplacid.local"
 # Credentials for joining members to AD (e.g. Domain Admin).

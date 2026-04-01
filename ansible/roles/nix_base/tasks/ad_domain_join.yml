@@ -20,6 +20,7 @@
       - ldap-utils
       - dnsutils
       - network-manager
+      - libnss-extrausers
     state: present
 
 - name: Check current realm membership
@@ -282,14 +283,15 @@
     create: false
   failed_when: false
 
-- name: Allow Domain Admins full sudo via SSSD
+# Domain Admins (AD group) + team admin accounts get sudo. Team local users are login-only (see permit/SSSD below).
+- name: Allow Domain Admins and team admin users full sudo via SSSD
   ansible.builtin.copy:
     dest: /etc/sudoers.d/99-ad-domain-admins
     mode: "0440"
     content: |
       %Domain\ Admins@{{ ad_domain }} ALL=(ALL:ALL) ALL
       %domain\ admins@{{ ad_domain }} ALL=(ALL:ALL) ALL
-      {% for u in (((blue_team_admin_users | default([])) + (blue_shared_users | default([]) | map(attribute='name') | list)) | unique) %}
+      {% for u in (blue_team_admin_users | default([]) | unique) %}
       {{ u }}@{{ ad_domain }} ALL=(ALL:ALL) ALL
       {% endfor %}
     validate: "/usr/sbin/visudo -cf %s"
@@ -349,10 +351,10 @@
     - ad_domain | lower not in (nix_realm_list.stdout | default('') | lower)
     - (nix_ad_join_method | default('adcli')) == 'realm'
 
-# --- realm permit: authorise team domain users to log into this Linux host ---
-# Combines admin users + standard users from team group_vars, plus shared accounts.
-# realm permit --realm resets the permit list; runs even on re-runs (idempotent).
-- name: Build full team user list for realm permit
+# --- Login allowlist (realm permit or SSSD simple_allow_users) ---
+# All listed users may SSH/login. Team local users are non-sudo; sudo is only Domain Admins + blue_team_admin_users (see sudoers above).
+# Combines admin + local team lists plus shared accounts (greyteam, scoring, ...).
+- name: Build full team user list for realm permit and SSSD allowlist
   ansible.builtin.set_fact:
     nix_realm_permit_users: >-
       {{
@@ -470,3 +472,72 @@
         (nix_sssd_allow_users_cfg is defined and nix_sssd_allow_users_cfg is changed)
       )
   failed_when: false
+
+# Flat passwd-style lines via libnss-extrausers (not realm; not editing /etc/passwd).
+- name: Ensure nsswitch.conf includes extrausers after files for passwd
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if grep -qE '^passwd:[[:space:]]+files[[:space:]]+extrausers' /etc/nsswitch.conf; then
+      echo "nsswitch_extrausers_already_present"
+      exit 0
+    fi
+    cp -a /etc/nsswitch.conf "/etc/nsswitch.conf.bak.ansible-extrausers-$(date +%s)"
+    sed -i 's/^\(passwd:[[:space:]]*files\)\([[:space:]]\)/\1 extrausers\2/' /etc/nsswitch.conf
+    echo "nsswitch_extrausers_updated"
+  args:
+    executable: /bin/bash
+  register: nix_nsswitch_extrausers_cmd
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_ad_nss_extrausers | default(true)
+    - nix_realm_permit_users | default([]) | length > 0
+  changed_when: "'nsswitch_extrausers_updated' in (nix_nsswitch_extrausers_cmd.stdout | default(''))"
+
+- name: Ensure extrausers directory and passwd file exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: "{{ item.state }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /var/lib/extrausers, state: directory, mode: "0755" }
+    - { path: /var/lib/extrausers/passwd, state: touch, mode: "0644" }
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_ad_nss_extrausers | default(true)
+    - nix_realm_permit_users | default([]) | length > 0
+
+- name: Ensure SSSD is running before resolving domain users for extrausers
+  ansible.builtin.service:
+    name: sssd
+    state: started
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_ad_nss_extrausers | default(true)
+    - nix_realm_permit_users | default([]) | length > 0
+
+- name: Materialize domain user lines into extrausers passwd (NSS-visible flat file)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    added=0
+    for short in {{ nix_realm_permit_users | join(' ') }}; do
+      u="${short}@{{ ad_domain }}"
+      id "$u" >/dev/null 2>&1 || true
+      line="$(getent passwd "$u" || true)"
+      [ -n "$line" ] || continue
+      if grep -qxF "$line" /var/lib/extrausers/passwd 2>/dev/null; then
+        continue
+      fi
+      printf '%s\n' "$line" >> /var/lib/extrausers/passwd
+      added=1
+    done
+    if [ "$added" -eq 1 ]; then
+      echo "EXTRAUSERS_ADDED"
+    fi
+  args:
+    executable: /bin/bash
+  register: nix_extrausers_materialize
+  changed_when: "'EXTRAUSERS_ADDED' in (nix_extrausers_materialize.stdout | default(''))"
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_ad_nss_extrausers | default(true)
+    - nix_realm_permit_users | default([]) | length > 0
