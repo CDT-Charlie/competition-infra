@@ -88,15 +88,24 @@
     dest: /tmp/mysql_setup.sql
     mode: '0644'
 
-- name: Run SQL setup script
-  mysql_db:
+- name: Create database
+  community.mysql.mysql_db:
+    name: miracle_ice
+    state: present
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+
+- name: Import SQL setup script
+  community.mysql.mysql_db:
     name: miracle_ice
     state: import
     target: /tmp/mysql_setup.sql
+    login_unix_socket: /var/run/mysqld/mysqld.sock
 
 - name: Create Database user
-  mysql_user:
+  community.mysql.mysql_user:
     name: "{{ web_stack.mysql.app_user }}"
     password: "{{ web_stack.mysql.app_password }}"
     priv: "miracle_ice.*:ALL"
+    host: localhost
     state: present
+    login_unix_socket: /var/run/mysqld/mysqld.sock
