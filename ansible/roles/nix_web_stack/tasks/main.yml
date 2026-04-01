@@ -3,7 +3,10 @@
 # Email: cpr9499@rit.edu
 
 # This playbook deploys a web stack on a Linux host with Nginx, MySQL, and PHP
-
+- name: Show loaded vars
+  debug:
+    msg: "{{ web_stack.web_root }}"
+    
 - name: Install Nginx, MySQL, and PHP packages
   apt: 
     name: 
