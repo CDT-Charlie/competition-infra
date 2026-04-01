@@ -525,10 +525,21 @@
   no_log: "{{ not (nix_ad_join_debug | default(false) | bool) }}"
   register: nix_realm_verbose_join
   changed_when: "'realm_join_verbose_ok=' in (nix_realm_verbose_join.stdout | default(''))"
+  failed_when: false
   when:
     - nix_ad_domain_join | default(false)
     - (nix_ad_join_method | default('adcli')) == 'adcli'
     - nix_ad_realm_join_verbose_after_adcli | default(true)
+
+- name: Warn when verbose realm join after adcli failed (continuing)
+  ansible.builtin.debug:
+    msg: >-
+      Optional realmd enrollment step failed after adcli join on {{ inventory_hostname }}.
+      Continuing with domain-join flow. Set -e nix_ad_join_debug=true to reveal stderr for this task.
+  when:
+    - nix_realm_verbose_join is defined
+    - nix_realm_verbose_join.rc is defined
+    - nix_realm_verbose_join.rc != 0
 
 - name: Restart SSSD after verbose realm join
   ansible.builtin.service:
