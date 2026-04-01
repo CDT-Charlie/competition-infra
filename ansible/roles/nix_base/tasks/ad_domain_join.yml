@@ -443,9 +443,10 @@
       }}
   when: nix_ad_domain_join | default(false)
 
+# realm permit expects login principals (user@realm), not bare SAM names — see realmd "login format".
 - name: Permit team domain users to log into this host via realm
   ansible.builtin.command:
-    argv: "{{ ['realm', 'permit', '--realm', nix_effective_realm_name] + nix_realm_permit_users }}"
+    argv: "{{ ['realm', 'permit', '--realm', nix_effective_realm_name] + (nix_realm_permit_users | map('regex_replace', '$', '@' ~ ad_domain) | list) }}"
   register: nix_realm_permit
   changed_when: nix_realm_permit.rc == 0
   failed_when: nix_realm_permit.rc != 0
