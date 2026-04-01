@@ -135,13 +135,44 @@
       - ldap-utils
       - dnsutils
       - network-manager
-      - libnss-extrausers
     state: present
     update_cache: false
   register: nix_ad_join_packages_apt
   retries: 4
   delay: 15
   until: nix_ad_join_packages_apt is succeeded
+
+# libnss-extrausers is optional: Ubuntu 20.04 Desktop + OpenStack often cannot fetch it when DNS to
+# nova.clouds.archive.ubuntu.com fails — domain join does not require this package.
+- name: Install libnss-extrausers for NSS passwd mirror (optional; non-fatal if apt cannot fetch)
+  ansible.builtin.apt:
+    name: libnss-extrausers
+    state: present
+    update_cache: false
+  register: nix_ad_libnss_extrausers_pkg
+  failed_when: false
+
+- name: Detect whether libnss-extrausers is installed
+  ansible.builtin.shell: |
+    dpkg-query -W -f='${Status}' libnss-extrausers 2>/dev/null | grep -q 'install ok installed'
+  args:
+    executable: /bin/bash
+  register: nix_libnss_extrausers_dpkg_check
+  changed_when: false
+  failed_when: false
+
+- name: Record libnss-extrausers availability for extrausers nsswitch tasks
+  ansible.builtin.set_fact:
+    nix_libnss_extrausers_installed: "{{ nix_libnss_extrausers_dpkg_check.rc == 0 }}"
+
+- name: Note skipping NSS extrausers mirror when package is not installed
+  ansible.builtin.debug:
+    msg: >-
+      libnss-extrausers is not installed (apt fetch may have failed). Skipping extrausers nsswitch
+      and flat passwd materialization; domain join and SSSD are unaffected.
+  when:
+    - nix_ad_nss_extrausers | default(true)
+    - not (nix_libnss_extrausers_installed | default(false))
 
 - name: Check current realm membership
   ansible.builtin.command: realm list
@@ -661,6 +692,7 @@
   when:
     - nix_ad_domain_join | default(false)
     - nix_ad_nss_extrausers | default(true)
+    - nix_libnss_extrausers_installed | default(false)
     - nix_realm_permit_users | default([]) | length > 0
   changed_when: "'nsswitch_extrausers_updated' in (nix_nsswitch_extrausers_cmd.stdout | default(''))"
 
@@ -675,6 +707,7 @@
   when:
     - nix_ad_domain_join | default(false)
     - nix_ad_nss_extrausers | default(true)
+    - nix_libnss_extrausers_installed | default(false)
     - nix_realm_permit_users | default([]) | length > 0
 
 - name: Ensure SSSD is running before resolving domain users for extrausers
@@ -686,6 +719,7 @@
   when:
     - nix_ad_domain_join | default(false)
     - nix_ad_nss_extrausers | default(true)
+    - nix_libnss_extrausers_installed | default(false)
     - nix_realm_permit_users | default([]) | length > 0
 
 - name: Diagnostic when SSSD did not start (extrausers path)
@@ -703,6 +737,7 @@
   when:
     - nix_ad_domain_join | default(false)
     - nix_ad_nss_extrausers | default(true)
+    - nix_libnss_extrausers_installed | default(false)
     - nix_realm_permit_users | default([]) | length > 0
     - nix_sssd_start_extrausers is defined
     - not (nix_sssd_start_extrausers is succeeded)
@@ -713,6 +748,7 @@
   when:
     - nix_ad_domain_join | default(false)
     - nix_ad_nss_extrausers | default(true)
+    - nix_libnss_extrausers_installed | default(false)
     - nix_realm_permit_users | default([]) | length > 0
     - nix_sssd_start_extrausers is defined
     - not (nix_sssd_start_extrausers is succeeded)
@@ -742,6 +778,7 @@
   when:
     - nix_ad_domain_join | default(false)
     - nix_ad_nss_extrausers | default(true)
+    - nix_libnss_extrausers_installed | default(false)
     - nix_realm_permit_users | default([]) | length > 0
     - nix_sssd_start_extrausers is defined
     - nix_sssd_start_extrausers is succeeded
