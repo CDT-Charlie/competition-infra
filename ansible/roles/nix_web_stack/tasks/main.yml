@@ -12,7 +12,6 @@
       - php-fpm
       - php-mysql
     state: present
-    update_cache: yes
 
 # Nginx Setup
 - name: Start and enable Nginx
