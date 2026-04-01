@@ -30,16 +30,20 @@ windows_local_winrm_password: "DeployWindows123!"
 # **false** = only for the first win_dc_dns run on a brand-new workgroup image. Most lab reruns use true.
 windows_dc_winrm_use_domain_account: true
 
-# OpenStack upstream DNS servers for non-AD lookups (apt mirrors, etc.).
-# Split-DNS keeps lakeplacid.local routed to team DC while preserving these resolvers.
-# Required on many Ubuntu 20.04 Desktop cloud images: apt uses nova.clouds.archive.ubuntu.com, which
-# fails if link DNS cannot resolve public or tenant DNS — set your lab resolvers, e.g. ["10.0.0.2"].
+# OpenStack / tenant upstream DNS for non-AD lookups (apt mirrors, etc.). Split-DNS still routes
+# lakeplacid.local to the team DC. On broken DHCP/neutron DNS, set this (e.g. ["10.0.0.2"]) or apt
+# and realm discover fail even though /etc/resolv.conf shows 127.0.0.53.
 openstack_dns_servers: []
+
+# Push the same DNS list into NetworkManager so split-DNS survives reboot (Ubuntu Desktop uses NM).
+nix_ad_persist_dns_nmcli: true
+# If true, NM uses only our resolver list (DC + openstack_dns_servers); set false to keep DHCP DNS too.
+nix_ad_nmcli_ignore_auto_dns: true
 
 # Linux AD join method:
 # - adcli (default): strict per-team DC targeting (recommended for isolated teams sharing same domain name)
 # - realm: DNS-based realm join path
-nix_ad_join_method: "adcli"
+nix_ad_join_method: "realm"
 
 # After adcli join, run `realm join -U <ad_domain_join.username> --verbose <ad_domain>` so realmd/sssd
 # stay in sync (realm list, realm permit). Uses ad_domain_join.password (e.g. Hockey123!).

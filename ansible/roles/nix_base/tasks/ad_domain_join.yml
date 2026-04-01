@@ -284,6 +284,31 @@
       changed_when: false
       failed_when: false
 
+    # resolvectl alone is lost on many desktops when NM refreshes; mirror DNS into the active NM connection.
+    - name: Persist split-DNS resolvers on NetworkManager (reboot-safe)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        iface="{{ nix_default_iface.stdout | trim }}"
+        conn="$(nmcli -t -f GENERAL.CONNECTION device show "$iface" 2>/dev/null | sed -n 's/^GENERAL.CONNECTION://p' | head -1 | tr -d '\r')"
+        conn="${conn#"${conn%%[![:space:]]*}"}"
+        conn="${conn%"${conn##*[![:space:]]}"}"
+        if [[ -z "$conn" || "$conn" == "--" ]]; then
+          echo "nmcli_skip_no_connection"
+          exit 0
+        fi
+        dns_csv="{{ nix_ad_resolvers | join(',') }}"
+        nmcli connection modify "$conn" ipv4.dns "$dns_csv" ipv4.dns-priority -50 \
+          ipv4.ignore-auto-dns "{{ 'yes' if (nix_ad_nmcli_ignore_auto_dns | default(true)) else 'no' }}"
+        nmcli device reapply "$iface" 2>/dev/null || nmcli connection up "$conn" 2>/dev/null || true
+        resolvectl flush-caches 2>/dev/null || true
+        echo "nmcli_persisted=$conn"
+      args:
+        executable: /bin/bash
+      register: nix_nmcli_dns_persist
+      changed_when: "'nmcli_persisted=' in (nix_nmcli_dns_persist.stdout | default(''))"
+      failed_when: false
+      when: nix_ad_persist_dns_nmcli | default(true)
+
     - name: Validate AD A record via team DC
       ansible.builtin.command:
         argv:
@@ -559,8 +584,8 @@
     u2='{{ ad_domain_join.username }}@{{ ad_domain }}'
     err="$(mktemp)"
 
-        for u in "$u1" "$u2"; do
-          if printf '%s\n' "$password" | realm join -U "$u" --verbose "$realm_name" 2>"$err"; then
+    for u in "$u1" "$u2"; do
+      if printf '%s\n' "$password" | realm join -U "$u" --verbose "$realm_name" 2>"$err"; then
         echo "joined_with=$u"
         exit 0
       fi
