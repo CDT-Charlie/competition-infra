@@ -1,24 +1,48 @@
 <?php
-# GREYTEAM NOTE: this file should be customized to display a real webpage fitting the competition theme
-
-# database info
-$host = "mysql";
-$db = "testdb";
-$user = "greyteam"; 
-$pass = "testpass";
-
-$conn = new mysqli($host, $user, $pass, $db);
-
-if ($conn->connect_error) {
-    die("Connection error: " . $conn->connect_error);
-}
-
-$result = $conn->query("SELECT message FROM test_table");
-
-while ($row = $result->fetch_assoc()) {
-    echo "<p>" . $row['message'] . "</p>"; # display each message in the databse 
-}
-
-$result = $conn->query("SELECT name FROM players");
-# display a table of players, team, number, position, etc, then customize?
+require 'config.php';
+$teams = $pdo->query("SELECT * FROM teams")->fetchAll();
 ?>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>1980 Miracle on Ice</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>1980 Miracle on Ice: USA vs Soviet Union</h1>
+
+    <?php foreach ($teams as $team): ?>
+        <section>
+            <h2><?= htmlspecialchars($team['team_name']) ?></h2>
+
+            <table>
+                <tr>
+                    <th>No.</th>
+                    <th>Pos.</th>
+                    <th>Name</th>
+                    <th>Age</th>
+                    <th>Hometown</th>
+                    <th>College / Club</th>
+                </tr>
+
+                <?php
+                $stmt = $pdo->prepare("SELECT * FROM players WHERE team_id = ? ORDER BY player_number");
+                $stmt->execute([$team['id']]);
+
+                foreach ($stmt as $player):
+                ?>
+                <tr>
+                    <td><?= $player['player_number'] ?></td>
+                    <td><?= htmlspecialchars($player['position']) ?></td>
+                    <td><?= htmlspecialchars($player['player_name']) ?></td>
+                    <td><?= $player['age'] ?></td>
+                    <td><?= htmlspecialchars($player['hometown']) ?></td>
+                    <td><?= htmlspecialchars($player['club_college']) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </table>
+        </section>
+    <?php endforeach; ?>
+</body>
+</html>
