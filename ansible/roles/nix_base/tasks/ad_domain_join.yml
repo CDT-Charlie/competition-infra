@@ -284,8 +284,44 @@
       changed_when: false
       failed_when: false
 
-    # resolvectl alone is lost on many desktops when NM refreshes; mirror DNS into the active NM connection.
-    - name: Persist split-DNS resolvers on NetworkManager (reboot-safe)
+    # Drop-in is the most reliable persistence: survives reboots, NM refreshes, DHCP renewals.
+    # It does NOT change resolv.conf mode or remove existing resolvers — purely additive.
+    - name: Create systemd-resolved drop-in directory
+      ansible.builtin.file:
+        path: /etc/systemd/resolved.conf.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when: nix_ad_persist_resolved_dropin | default(true)
+
+    - name: Write systemd-resolved drop-in for AD split-DNS (reboot-safe)
+      ansible.builtin.copy:
+        dest: /etc/systemd/resolved.conf.d/99-ad-split-dns.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          # Managed by Ansible (nix_base/ad_domain_join) — do not edit manually.
+          [Resolve]
+          # DC first so lakeplacid.local resolves even when public DNS is slow.
+          DNS={{ (nix_ad_resolvers | join(' ')) }}
+          # Route lakeplacid.local queries to DC; fall through to upstream for everything else.
+          Domains={{ ad_domain }} ~{{ ad_domain }}
+      register: nix_resolved_dropin
+      when: nix_ad_persist_resolved_dropin | default(true)
+
+    - name: Restart systemd-resolved to apply drop-in
+      ansible.builtin.service:
+        name: systemd-resolved
+        state: restarted
+      when:
+        - nix_ad_persist_resolved_dropin | default(true)
+        - nix_resolved_dropin is changed
+
+    # Additive NM entry: adds DC IP to the connection's DNS list but keeps ignore-auto-dns OFF
+    # so DHCP-provided resolvers (e.g. 1.1.1.1/8.8.8.8 from cloud-init) are preserved.
+    - name: Persist DC IP in NetworkManager connection (additive, keeps DHCP DNS)
       ansible.builtin.shell: |
         set -euo pipefail
         iface="{{ nix_default_iface.stdout | trim }}"
@@ -296,9 +332,21 @@
           echo "nmcli_skip_no_connection"
           exit 0
         fi
-        dns_csv="{{ nix_ad_resolvers | join(',') }}"
-        nmcli connection modify "$conn" ipv4.dns "$dns_csv" ipv4.dns-priority -50 \
-          ipv4.ignore-auto-dns "{{ 'yes' if (nix_ad_nmcli_ignore_auto_dns | default(true)) else 'no' }}"
+        # Build a comma-separated list of DC + any explicit openstack_dns_servers.
+        # ignore-auto-dns is deliberately left OFF (no) so cloud-init/DHCP DNS is additive.
+        dc_ip="{{ team_domain_controller_ip }}"
+        extra="{{ openstack_dns_servers | join(',') }}"
+        if [[ -n "$extra" ]]; then
+          dns_csv="${dc_ip},${extra}"
+        else
+          dns_csv="$dc_ip"
+        fi
+        nmcli connection modify "$conn" \
+          ipv4.dns "$dns_csv" \
+          ipv4.dns-priority -50 \
+          ipv4.ignore-auto-dns no \
+          ipv4.dns-search "{{ ad_domain }} ~{{ ad_domain }}"
+        # reapply is safe here: ignore-auto-dns=no means DHCP DNS is still merged in.
         nmcli device reapply "$iface" 2>/dev/null || nmcli connection up "$conn" 2>/dev/null || true
         resolvectl flush-caches 2>/dev/null || true
         echo "nmcli_persisted=$conn"

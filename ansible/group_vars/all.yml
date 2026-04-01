@@ -35,10 +35,11 @@ windows_dc_winrm_use_domain_account: true
 # and realm discover fail even though /etc/resolv.conf shows 127.0.0.53.
 openstack_dns_servers: []
 
-# Push the same DNS list into NetworkManager so split-DNS survives reboot (Ubuntu Desktop uses NM).
+# Write a systemd-resolved drop-in (/etc/systemd/resolved.conf.d/99-ad-split-dns.conf) so
+# AD split-DNS survives reboots and NM refreshes without touching NM connection profiles.
+nix_ad_persist_resolved_dropin: true
+# Also push DC IP into the NM connection profile (additive — never removes DHCP DNS).
 nix_ad_persist_dns_nmcli: true
-# If true, NM uses only our resolver list (DC + openstack_dns_servers); set false to keep DHCP DNS too.
-nix_ad_nmcli_ignore_auto_dns: true
 
 # Linux AD join method:
 # - adcli (default): strict per-team DC targeting (recommended for isolated teams sharing same domain name)
