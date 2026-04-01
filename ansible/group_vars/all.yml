@@ -40,6 +40,10 @@ openstack_dns_servers: []
 # - realm: DNS-based realm join path
 nix_ad_join_method: "adcli"
 
+# After adcli join, run `realm join -U <ad_domain_join.username> --verbose <ad_domain>` so realmd/sssd
+# stay in sync (realm list, realm permit). Uses ad_domain_join.password (e.g. Hockey123!).
+nix_ad_realm_join_verbose_after_adcli: true
+
 # Mirror allowlisted domain users into libnss-extrausers (flat file under /var/lib/extrausers/passwd).
 # NSS merges these with local /etc/passwd — not written into /etc/passwd itself (unsafe for AD UIDs).
 nix_ad_nss_extrausers: true

@@ -324,6 +324,54 @@
     - ad_domain | lower not in (nix_realm_list.stdout | default('') | lower)
     - (nix_ad_join_method | default('adcli')) == 'adcli'
 
+# Registers the host with realmd (realm list / realm permit) and aligns sssd with what adcli wrote.
+# Equivalent intent: sudo realm join -U 'greyteam' --verbose lakeplacid.local  (credentials from ad_domain_join).
+- name: Verbose realm join after adcli (realmd enrollment)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    realm_name='{{ ad_domain }}'
+    password='{{ ad_domain_join.password }}'
+    u1='{{ ad_domain_join.username }}'
+    u2='{{ ad_domain_join.username }}@{{ ad_domain }}'
+    err="$(mktemp)"
+    rl="$(realm list --name-only 2>/dev/null || true)"
+    if printf '%s\n' "$rl" | grep -Fx "$realm_name" >/dev/null 2>&1; then
+      echo "realm_already_listed=$realm_name"
+      exit 0
+    fi
+    for u in "$u1" "$u2"; do
+      if printf '%s\n' "$password" | realm join -U "$u" --verbose "$realm_name" 2>"$err"; then
+        echo "realm_join_verbose_ok=$u"
+        exit 0
+      fi
+      errtxt="$(cat "$err" || true)"
+      if printf '%s' "$errtxt" | grep -Eiq 'already enrolled|already joined|already a member|Already configured'; then
+        echo "realm_join_already=$u"
+        exit 0
+      fi
+    done
+    echo "verbose realm join failed for $u1 and $u2" >&2
+    cat "$err" >&2 || true
+    exit 1
+  args:
+    executable: /bin/bash
+  no_log: "{{ not (nix_ad_join_debug | default(false) | bool) }}"
+  register: nix_realm_verbose_join
+  changed_when: "'realm_join_verbose_ok=' in (nix_realm_verbose_join.stdout | default(''))"
+  when:
+    - nix_ad_domain_join | default(false)
+    - (nix_ad_join_method | default('adcli')) == 'adcli'
+    - nix_ad_realm_join_verbose_after_adcli | default(true)
+
+- name: Restart SSSD after verbose realm join
+  ansible.builtin.service:
+    name: sssd
+    state: restarted
+  when:
+    - nix_realm_verbose_join is defined
+    - nix_realm_verbose_join is changed
+  failed_when: false
+
 - name: Join with realm (optional DNS-based path) at end of AD flow
   ansible.builtin.shell: |
     set -euo pipefail
@@ -333,8 +381,8 @@
     u2='{{ ad_domain_join.username }}@{{ ad_domain }}'
     err="$(mktemp)"
 
-    for u in "$u1" "$u2"; do
-      if printf '%s\n' "$password" | realm join -U "$u" "$realm_name" 2>"$err"; then
+        for u in "$u1" "$u2"; do
+          if printf '%s\n' "$password" | realm join -U "$u" --verbose "$realm_name" 2>"$err"; then
         echo "joined_with=$u"
         exit 0
       fi
@@ -467,6 +515,8 @@
     - (
         (nix_realm_join is defined and nix_realm_join is changed)
         or
+        (nix_realm_verbose_join is defined and nix_realm_verbose_join is changed)
+        or
         (nix_sssd_access_provider is defined and nix_sssd_access_provider is changed)
         or
         (nix_sssd_allow_users_cfg is defined and nix_sssd_allow_users_cfg is changed)
@@ -510,10 +560,41 @@
   ansible.builtin.service:
     name: sssd
     state: started
+  register: nix_sssd_start_extrausers
+  failed_when: false
   when:
     - nix_ad_domain_join | default(false)
     - nix_ad_nss_extrausers | default(true)
     - nix_realm_permit_users | default([]) | length > 0
+
+- name: Diagnostic when SSSD did not start (extrausers path)
+  ansible.builtin.command:
+    argv:
+      - journalctl
+      - -u
+      - sssd
+      - -n
+      - "40"
+      - --no-pager
+  register: nix_sssd_journal_tail
+  changed_when: false
+  failed_when: false
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_ad_nss_extrausers | default(true)
+    - nix_realm_permit_users | default([]) | length > 0
+    - nix_sssd_start_extrausers is defined
+    - not (nix_sssd_start_extrausers is succeeded)
+
+- name: Debug SSSD journal tail after failed start
+  ansible.builtin.debug:
+    var: nix_sssd_journal_tail.stdout_lines
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_ad_nss_extrausers | default(true)
+    - nix_realm_permit_users | default([]) | length > 0
+    - nix_sssd_start_extrausers is defined
+    - not (nix_sssd_start_extrausers is succeeded)
 
 - name: Materialize domain user lines into extrausers passwd (NSS-visible flat file)
   ansible.builtin.shell: |
@@ -541,3 +622,5 @@
     - nix_ad_domain_join | default(false)
     - nix_ad_nss_extrausers | default(true)
     - nix_realm_permit_users | default([]) | length > 0
+    - nix_sssd_start_extrausers is defined
+    - nix_sssd_start_extrausers is succeeded
