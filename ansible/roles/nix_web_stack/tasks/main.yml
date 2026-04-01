@@ -12,6 +12,14 @@
       - php-fpm
       - php-mysql
     state: present
+    update_cache: yes
+
+# PHP
+- name: Start and enable PHP-FPM
+  service:
+    name: php8.1-fpm
+    state: started
+    enabled: yes
 
 # Nginx Setup
 - name: Start and enable Nginx
@@ -88,10 +96,3 @@
     password: "{{ web_stack.mysql.app_password }}"
     priv: "miracle_ice.*:ALL"
     state: present
-
-# PHP
-- name: Start and enable PHP-FPM
-  service:
-    name: php8.1-fpm
-    state: started
-    enabled: yes
