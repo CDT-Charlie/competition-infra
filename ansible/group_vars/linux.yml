@@ -26,7 +26,7 @@ mail_server:
 # Web Stack (Nginx + MySQL)
 web_stack:
   web_root: "/var/www/html/miracle_ice"
-  mariadb:
+  mysql:
     root_password: "examplepassword"
     app_user: "greyteam"
     app_password: "testpass"
