@@ -27,7 +27,6 @@
 
 - name: Deploy Windows DNS / domain controller
   hosts: windows_dc
-  tags: [dc, domain_stack]
   vars:
     domain_name: "{{ windows_dc.domain_name }}"
     netbios_name: "{{ windows_dc.netbios_name }}"
@@ -62,6 +61,8 @@
     ansible_user: "{{ bootstrap_user.username }}"
     ansible_password: "{{ bootstrap_user.password }}"
     ansible_become_password: "{{ bootstrap_user.password }}"
+    # Keep domain-join run lean on fresh infra; troubleshooting preflight can be re-enabled via -e.
+    nix_ad_preflight_checks: false
   roles:
     - nix_base
 

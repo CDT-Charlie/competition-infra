@@ -45,6 +45,10 @@ nix_ad_join_method: "adcli"
 # stay in sync (realm list, realm permit). Uses ad_domain_join.password (e.g. Hockey123!).
 nix_ad_realm_join_verbose_after_adcli: true
 
+# Keep optional AD preflight validators disabled for faster/leaner runs.
+# Set true only when actively troubleshooting DNS/discovery issues.
+nix_ad_preflight_checks: false
+
 # Mirror allowlisted domain users into libnss-extrausers (flat file under /var/lib/extrausers/passwd).
 # If the libnss-extrausers package cannot be installed (e.g. 20.04 + bad mirror DNS), those steps skip.
 nix_ad_nss_extrausers: true

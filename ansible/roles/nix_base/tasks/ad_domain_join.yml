@@ -262,6 +262,7 @@
           [Preflight: DNS upstream] No upstream DNS resolvers found.
           Define openstack_dns_servers in group_vars/all.yml (example:
           openstack_dns_servers: ['10.0.0.2','10.0.0.3']) when nmcli/resolvectl discovery is empty.
+      when: nix_ad_preflight_checks | default(false)
 
     - name: Configure split-DNS resolvers (team DC first + upstream OpenStack DNS)
       ansible.builtin.command:
@@ -293,6 +294,7 @@
       register: nix_dig_a
       changed_when: false
       failed_when: (nix_dig_a.stdout | trim | length) == 0
+      when: nix_ad_preflight_checks | default(false)
 
     - name: Validate AD SRV record via team DC
       ansible.builtin.command:
@@ -305,6 +307,7 @@
       register: nix_dig_srv_dc
       changed_when: false
       failed_when: (nix_dig_srv_dc.stdout | trim | length) == 0
+      when: nix_ad_preflight_checks | default(false)
 
     - name: Validate split-DNS resolver query for AD domain
       ansible.builtin.command:
@@ -315,6 +318,7 @@
       register: nix_resolvectl_query_domain
       changed_when: false
       failed_when: nix_resolvectl_query_domain.rc != 0
+      when: nix_ad_preflight_checks | default(false)
 
     - name: Validate split-DNS resolver query for LDAP SRV
       ansible.builtin.command:
@@ -326,6 +330,7 @@
       register: nix_resolvectl_query_srv
       changed_when: false
       failed_when: nix_resolvectl_query_srv.rc != 0
+      when: nix_ad_preflight_checks | default(false)
 
     - name: Validate adcli info against explicit team DC
       ansible.builtin.command:
@@ -337,6 +342,7 @@
       register: nix_adcli_info
       changed_when: false
       failed_when: nix_adcli_info.rc != 0
+      when: nix_ad_preflight_checks | default(false)
 
     - name: Validate realm discovery through split DNS
       ansible.builtin.command:
@@ -347,6 +353,7 @@
       register: nix_realm_discover
       changed_when: false
       failed_when: nix_realm_discover.rc != 0
+      when: nix_ad_preflight_checks | default(false)
 
   rescue:
     - name: Diagnostic - resolvectl status
@@ -354,6 +361,7 @@
       register: nix_diag_resolvectl_status
       changed_when: false
       failed_when: false
+      when: nix_ad_preflight_checks | default(false)
 
     - name: Diagnostic - resolvectl dns iface
       ansible.builtin.command:
@@ -364,7 +372,9 @@
       register: nix_diag_resolvectl_dns
       changed_when: false
       failed_when: false
-      when: nix_default_iface is defined
+      when:
+        - nix_ad_preflight_checks | default(false)
+        - nix_default_iface is defined
 
     - name: Diagnostic - resolvectl domain iface
       ansible.builtin.command:
@@ -375,7 +385,9 @@
       register: nix_diag_resolvectl_domain
       changed_when: false
       failed_when: false
-      when: nix_default_iface is defined
+      when:
+        - nix_ad_preflight_checks | default(false)
+        - nix_default_iface is defined
 
     - name: Diagnostic - nmcli device show iface
       ansible.builtin.command:
@@ -387,7 +399,9 @@
       register: nix_diag_nmcli_dev
       changed_when: false
       failed_when: false
-      when: nix_default_iface is defined
+      when:
+        - nix_ad_preflight_checks | default(false)
+        - nix_default_iface is defined
 
     - name: Diagnostic - /etc/resolv.conf
       ansible.builtin.command:
@@ -395,6 +409,7 @@
       register: nix_diag_resolv_conf
       changed_when: false
       failed_when: false
+      when: nix_ad_preflight_checks | default(false)
 
     - name: Fail with consolidated diagnostics
       ansible.builtin.fail:
@@ -425,6 +440,7 @@
           --- /etc/resolv.conf ---
           {{ nix_diag_resolv_conf.stdout | default('') }}
           {{ nix_diag_resolv_conf.stderr | default('') }}
+      when: nix_ad_preflight_checks | default(false)
 
 - name: Create home directories for domain logins
   ansible.builtin.lineinfile:
