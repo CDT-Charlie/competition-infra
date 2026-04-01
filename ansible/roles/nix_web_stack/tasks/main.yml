@@ -43,9 +43,10 @@
     - score.php
 
 - name: Copy Nginx configuration
-  src: ../files/nginx.conf
-  dest: /etc/nginx/sites-available/miracle_ice
-  mode: '0644'
+  copy: 
+    src: nginx.conf
+    dest: /etc/nginx/sites-available/miracle_ice
+    mode: '0644'
 
 - name: Enable nginx site
   file: 
