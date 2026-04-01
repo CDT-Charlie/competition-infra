@@ -103,6 +103,23 @@
     - nix_probe_archive_ubuntu.rc != 0
     - nix_ad_pkg_dns_candidates | default([]) | length == 0
 
+# Do not block the play on apt-get update (common on 20.04 Desktop when mirrors/DNS are flaky).
+- name: Update apt cache before AD packages (best effort)
+  ansible.builtin.command:
+    argv:
+      - apt-get
+      - update
+  register: nix_ad_apt_cache_update
+  failed_when: false
+  changed_when: nix_ad_apt_cache_update.rc == 0
+
+- name: Note when apt cache update failed (install still attempted)
+  ansible.builtin.debug:
+    msg: >-
+      apt-get update failed on this host (rc={{ nix_ad_apt_cache_update.rc }}); continuing with
+      package install without a fresh index. Fix DNS/mirrors if installs fail.
+  when: nix_ad_apt_cache_update.rc != 0
+
 - name: Install packages for AD domain join
   ansible.builtin.apt:
     name:
@@ -120,7 +137,7 @@
       - network-manager
       - libnss-extrausers
     state: present
-    update_cache: true
+    update_cache: false
   register: nix_ad_join_packages_apt
   retries: 4
   delay: 15
