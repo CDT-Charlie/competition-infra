@@ -111,3 +111,7 @@ all:
     windows:
       children:
         blue_windows:
+
+    linux: 
+      children:
+        blue_linux:
