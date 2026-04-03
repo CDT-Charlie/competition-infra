@@ -16,6 +16,12 @@
   ansible.windows.win_command: C:\Windows\Temp\tailscale-setup.exe /S
   when: not tailscale_installed.exists
 
+- name: Ensure WinHttpAutoProxySvc is enabled (required by Tailscale)
+  ansible.windows.win_service:
+    name: WinHttpAutoProxySvc
+    start_mode: manual
+    state: started
+
 - name: Wait for Tailscale service to be available
   ansible.windows.win_service:
     name: Tailscale
