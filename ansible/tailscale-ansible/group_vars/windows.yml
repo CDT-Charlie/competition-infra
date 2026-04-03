@@ -10,4 +10,4 @@ ansible_winrm_port: 5985
 # ansible_winrm_transport: kerberos  # domain-joined hosts (optional)
 
 # Tailscale settings (authkey loaded from secrets.yml)
-tailscale_args: "--accept-routes --accept-dns=false"
+tailscale_args: "--accept-routes --accept-dns=false --unattended"
