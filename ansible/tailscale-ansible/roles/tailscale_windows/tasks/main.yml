@@ -1,22 +1,21 @@
 ---
 - name: Check if Tailscale is already installed
-  win_reg_key:
+  ansible.windows.win_reg_stat:
     path: HKLM:\SOFTWARE\Tailscale IPN
   register: tailscale_installed
-  ignore_errors: true
 
 - name: Download Tailscale installer
-  win_get_url:
+  ansible.windows.win_get_url:
     url: https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.exe
     dest: C:\Windows\Temp\tailscale-setup.exe
-  when: tailscale_installed.failed
+  when: not tailscale_installed.exists
 
 - name: Install Tailscale silently
-  win_command: C:\Windows\Temp\tailscale-setup.exe /S
-  when: tailscale_installed.failed
+  ansible.windows.win_command: C:\Windows\Temp\tailscale-setup.exe /S
+  when: not tailscale_installed.exists
 
 - name: Wait for Tailscale service to be available
-  win_service:
+  ansible.windows.win_service:
     name: Tailscale
   register: tailscale_svc
   until: tailscale_svc.state is defined
@@ -24,13 +23,13 @@
   delay: 5
 
 - name: Ensure Tailscale service is running
-  win_service:
+  ansible.windows.win_service:
     name: Tailscale
     state: started
     start_mode: auto
 
 - name: Authenticate Tailscale with authkey
-  win_command: >
+  ansible.windows.win_command: >
     "C:\Program Files\Tailscale\tailscale.exe" up
     --authkey={{ tailscale_authkey }}
     {{ tailscale_args }}
@@ -39,7 +38,7 @@
   no_log: true
 
 - name: Verify Tailscale is connected
-  win_command: '"C:\Program Files\Tailscale\tailscale.exe" status'
+  ansible.windows.win_command: '"C:\Program Files\Tailscale\tailscale.exe" status'
   register: tailscale_status
   changed_when: false
 
