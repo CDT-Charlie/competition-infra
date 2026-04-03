@@ -1,0 +1,13 @@
+---
+# Windows connection settings
+ansible_user: greyteam
+ansible_password: "<password>"
+ansible_connection: winrm
+ansible_winrm_transport: ntlm
+ansible_winrm_server_cert_validation: ignore
+ansible_winrm_port: 5985
+# ansible_winrm_port: 5986           # HTTPS (optional)
+# ansible_winrm_transport: kerberos  # domain-joined hosts (optional)
+
+# Tailscale settings (authkey loaded from secrets.yml)
+tailscale_args: "--accept-routes --ssh"

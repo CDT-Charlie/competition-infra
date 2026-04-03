@@ -1,0 +1,14 @@
+---
+- name: Ping Linux hosts
+  hosts: linux
+  gather_facts: false
+  tasks:
+    - name: Ping
+      ping:
+
+- name: Ping Windows hosts
+  hosts: windows
+  gather_facts: false
+  tasks:
+    - name: Ping
+      win_ping:

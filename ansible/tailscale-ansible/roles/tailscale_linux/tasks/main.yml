@@ -1,0 +1,48 @@
+---
+- name: Add Tailscale repository (Debian/Ubuntu)
+  shell: |
+    curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/focal.gpg | sudo apt-key add -
+    curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/focal.list | sudo tee /etc/apt/sources.list.d/tailscale.list
+  args:
+    creates: /etc/apt/sources.list.d/tailscale.list
+  when: ansible_os_family == "Debian"
+
+- name: Add Tailscale repository (RHEL/CentOS)
+  shell: dnf config-manager --add-repo https://pkgs.tailscale.com/stable/rhel/9/tailscale.repo
+  args:
+    creates: /etc/yum.repos.d/tailscale.repo
+  when: ansible_os_family == "RedHat"
+
+- name: Install Tailscale (Debian/Ubuntu)
+  apt:
+    name: tailscale
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Debian"
+
+- name: Install Tailscale (RHEL/CentOS)
+  dnf:
+    name: tailscale
+    state: present
+  when: ansible_os_family == "RedHat"
+
+- name: Enable and start tailscaled service
+  systemd:
+    name: tailscaled
+    enabled: true
+    state: started
+
+- name: Authenticate Tailscale with authkey
+  command: tailscale up --authkey={{ tailscale_authkey }} {{ tailscale_args }}
+  register: tailscale_up
+  changed_when: "'already authenticated' not in tailscale_up.stderr"
+  no_log: true
+
+- name: Verify Tailscale is connected
+  command: tailscale status
+  register: tailscale_status
+  changed_when: false
+
+- name: Show Tailscale status
+  debug:
+    msg: "{{ tailscale_status.stdout_lines }}"

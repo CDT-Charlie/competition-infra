@@ -1,0 +1,11 @@
+# Ansible Vault password file - never commit
+.vault_pass
+~/.vault_pass
+
+# Secrets - encrypted via Ansible Vault before committing
+# secrets.yml is SAFE to commit only after running: ansible-vault encrypt secrets.yml
+# Uncomment the line below if you want an extra guardrail while unencrypted:
+# secrets.yml
+
+# Ansible runtime files
+*.retry
