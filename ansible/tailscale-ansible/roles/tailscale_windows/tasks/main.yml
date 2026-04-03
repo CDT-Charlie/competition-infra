@@ -4,10 +4,13 @@
     path: HKLM:\SOFTWARE\Tailscale IPN
   register: tailscale_installed
 
-- name: Download Tailscale installer
-  ansible.windows.win_get_url:
-    url: https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.exe
-    dest: C:\Windows\Temp\tailscale-setup.exe
+- name: Download latest Tailscale installer via PowerShell
+  ansible.windows.win_shell: |
+    $url = "https://pkgs.tailscale.com/stable/#windows"
+    $page = Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/" -UseBasicParsing
+    $exe = ($page.Links | Where-Object { $_.href -match "tailscale-setup-full.*\.exe$" } | Select-Object -First 1).href
+    $fullUrl = "https://pkgs.tailscale.com/stable/$exe"
+    Invoke-WebRequest -Uri $fullUrl -OutFile "C:\Windows\Temp\tailscale-setup.exe" -UseBasicParsing
   when: not tailscale_installed.exists
 
 - name: Install Tailscale silently
