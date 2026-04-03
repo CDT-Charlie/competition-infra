@@ -6,7 +6,6 @@
 
 - name: Download latest Tailscale installer via PowerShell
   ansible.windows.win_shell: |
-    $url = "https://pkgs.tailscale.com/stable/#windows"
     $page = Invoke-WebRequest -Uri "https://pkgs.tailscale.com/stable/" -UseBasicParsing
     $exe = ($page.Links | Where-Object { $_.href -match "tailscale-setup-full.*\.exe$" } | Select-Object -First 1).href
     $fullUrl = "https://pkgs.tailscale.com/stable/$exe"
@@ -32,13 +31,11 @@
     start_mode: auto
 
 - name: Authenticate Tailscale with authkey
-  ansible.windows.win_command: >
-    "C:\Program Files\Tailscale\tailscale.exe" up
-    --authkey={{ tailscale_authkey }}
-    {{ tailscale_args }}
+  ansible.windows.win_shell: |
+    & "C:\Program Files\Tailscale\tailscale.exe" up --authkey="{{ tailscale_authkey }}" {{ tailscale_args }}
   register: tailscale_up
   changed_when: "'already authenticated' not in tailscale_up.stderr"
-  no_log: true
+  # no_log: true  # Re-enable after confirming auth works
 
 - name: Verify Tailscale is connected
   ansible.windows.win_command: '"C:\Program Files\Tailscale\tailscale.exe" status'
