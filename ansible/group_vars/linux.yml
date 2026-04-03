@@ -38,3 +38,21 @@ rsyslog:
   remote_log_dir: "/var/log/remote"
   logrotate_size: "100k"
   logrotate_rotate: 2
+
+# Ref Review MCP (Grey Team tool on blue1/blue2-cross-check — stdio for Open WebUI)
+# SSH uses domain principal (ssh -l greyteam@<ad_domain>) + optional identity file; see deploy_greyteam_mcp_ssh.yml.
+ref_review_mcp:
+  install_dir: "/opt/ref_review_mcp"
+  ssh_login: "greyteam@{{ ad_domain }}"
+  ssh_home: "/home/greyteam@{{ ad_domain }}"
+  ssh_identity_file: "/home/greyteam@{{ ad_domain }}/.ssh/id_ref_review_mcp"
+  ssh_connect_timeout: 15
+  allowed_subnets:
+    - "10.100.2.0/24"
+    - "10.100.3.0/24"
+  poison_network: "10.100.1.0/24"
+  pip_packages:
+    - "mcp>=1.2.0"
+  file_owner: "greyteam@{{ ad_domain }}"
+  file_group: "greyteam@{{ ad_domain }}"
+  env_file: "/etc/default/ref_review_mcp"

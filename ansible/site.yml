@@ -145,12 +145,14 @@
     - nix_base
     - nix_rsyslog
 
-# - name: Deploy Linux MCP scored service
-#   hosts: mcp_hosts
-#   become: yes
-#   tags: [services]
-#   # TODO: enable when MCP server role/playbook exists.
-#
+- name: Deploy Ref Review MCP (read-only tampering inspector for Open WebUI)
+  hosts: mcp_hosts
+  become: true
+  tags: [services, ref_review_mcp]
+  roles:
+    - nix_base
+    - nix_mcp
+
 # - name: Deploy Windows IIS scored service
 #   hosts: windows_iis
 #   tags: [services]

@@ -1,0 +1,66 @@
+---
+# Ref Review MCP — Grey Team read-only tampering inspector (stdio MCP + SSH to Blue Linux).
+# Requires domain greyteam (nix_base / realm permit). MCP SSH keys: deploy_greyteam_mcp_ssh.yml + scripts/deploy-greyteam-mcp-ssh.sh.
+
+- name: Install Python venv, pip, and SSH client for Ref Review MCP
+  ansible.builtin.apt:
+    name:
+      - python3
+      - python3-venv
+      - python3-pip
+      - openssh-client
+    state: present
+    update_cache: true
+
+- name: Ensure Ref Review install directory exists
+  ansible.builtin.file:
+    path: "{{ ref_review_mcp.install_dir }}"
+    state: directory
+    owner: "{{ ref_review_mcp.file_owner }}"
+    group: "{{ ref_review_mcp.file_group }}"
+    mode: "0755"
+
+- name: Create Python venv for Ref Review MCP
+  ansible.builtin.command:
+    cmd: python3 -m venv "{{ ref_review_mcp.install_dir }}/venv"
+    creates: "{{ ref_review_mcp.install_dir }}/venv/bin/python"
+
+- name: Install / upgrade pip in venv
+  ansible.builtin.pip:
+    name: pip
+    state: latest
+    virtualenv: "{{ ref_review_mcp.install_dir }}/venv"
+
+- name: Install MCP SDK into venv
+  ansible.builtin.pip:
+    name: "{{ ref_review_mcp.pip_packages }}"
+    virtualenv: "{{ ref_review_mcp.install_dir }}/venv"
+
+- name: Deploy ref_review_mcp.py
+  ansible.builtin.copy:
+    src: ref_review_mcp.py
+    dest: "{{ ref_review_mcp.install_dir }}/ref_review_mcp.py"
+    owner: "{{ ref_review_mcp.file_owner }}"
+    group: "{{ ref_review_mcp.file_group }}"
+    mode: "0755"
+
+- name: Deploy Ref Review environment file
+  ansible.builtin.template:
+    src: ref_review_mcp.env.j2
+    dest: "{{ ref_review_mcp.env_file }}"
+    mode: "0644"
+
+- name: Deploy Ref Review stdio launcher (Open WebUI command target)
+  ansible.builtin.template:
+    src: run-ref-review-mcp.sh.j2
+    dest: "{{ ref_review_mcp.install_dir }}/run-ref-review-mcp.sh"
+    owner: "{{ ref_review_mcp.file_owner }}"
+    group: "{{ ref_review_mcp.file_group }}"
+    mode: "0755"
+
+- name: Ensure greyteam owns the venv tree (pip may run as root)
+  ansible.builtin.file:
+    path: "{{ ref_review_mcp.install_dir }}"
+    owner: "{{ ref_review_mcp.file_owner }}"
+    group: "{{ ref_review_mcp.file_group }}"
+    recurse: true

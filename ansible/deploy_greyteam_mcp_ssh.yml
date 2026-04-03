@@ -1,0 +1,81 @@
+---
+# Deploy SSH keypair for Ref Review MCP: greyteam domain principal → Blue Linux peers.
+#
+# Prerequisites:
+#   - Linux hosts joined to AD (site.yml domain_stack / nix_base) so greyteam@<realm> exists via SSSD.
+#   - Generate a dedicated key on the Ansible controller (do not commit private keys), e.g.:
+#       ssh-keygen -t ed25519 -f ./ref_review_mcp_ed25519 -N ''
+#
+# Usage (from ansible/):
+#   ansible-playbook -i inventory.yml deploy_greyteam_mcp_ssh.yml \
+#     -e ref_review_mcp_ssh_public_key_file=/path/to/ref_review_mcp_ed25519.pub \
+#     -e ref_review_mcp_ssh_private_key_file=/path/to/ref_review_mcp_ed25519
+#
+# Play 1 adds the public key to authorized_keys on all blue_linux hosts.
+# Play 2 copies the private key only to mcp_hosts (cross-check) for BatchMode + -i.
+
+- name: Assert key file paths are provided
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Require ref_review_mcp_ssh_public_key_file and ref_review_mcp_ssh_private_key_file
+      ansible.builtin.assert:
+        that:
+          - ref_review_mcp_ssh_public_key_file is defined
+          - ref_review_mcp_ssh_private_key_file is defined
+          - ref_review_mcp_ssh_public_key_file | length > 0
+          - ref_review_mcp_ssh_private_key_file | length > 0
+        fail_msg: >-
+          Pass -e ref_review_mcp_ssh_public_key_file=... and -e ref_review_mcp_ssh_private_key_file=...
+          (controller-local paths to the MCP keypair).
+
+- name: Install Ref Review MCP public key for domain greyteam (all Blue Linux)
+  hosts: blue_linux
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Ensure domain principal is present in NSS
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ ref_review_mcp.ssh_login }}"
+
+    - name: Authorize MCP public key for Ref Review SSH
+      ansible.builtin.authorized_key:
+        user: "{{ ref_review_mcp.ssh_login }}"
+        state: present
+        key: "{{ lookup('file', ref_review_mcp_ssh_public_key_file) }}"
+
+- name: Install Ref Review MCP private key on cross-check hosts only
+  hosts: mcp_hosts
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Ensure domain principal is present in NSS
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ ref_review_mcp.ssh_login }}"
+
+    - name: Ensure greyteam home directory exists (SSSD layout)
+      ansible.builtin.file:
+        path: "{{ ref_review_mcp.ssh_home }}"
+        state: directory
+        owner: "{{ ref_review_mcp.ssh_login }}"
+        group: "{{ ref_review_mcp.ssh_login }}"
+        mode: "0755"
+
+    - name: Ensure greyteam .ssh directory exists
+      ansible.builtin.file:
+        path: "{{ ref_review_mcp.ssh_home }}/.ssh"
+        state: directory
+        owner: "{{ ref_review_mcp.ssh_login }}"
+        group: "{{ ref_review_mcp.ssh_login }}"
+        mode: "0700"
+
+    - name: Copy MCP private key to cross-check (0600)
+      ansible.builtin.copy:
+        src: "{{ ref_review_mcp_ssh_private_key_file }}"
+        dest: "{{ ref_review_mcp.ssh_identity_file }}"
+        owner: "{{ ref_review_mcp.ssh_login }}"
+        group: "{{ ref_review_mcp.ssh_login }}"
+        mode: "0600"

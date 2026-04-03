@@ -1,0 +1,4240 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+deploy_ssh_key.yml
+group_vars/all.yml
+group_vars/blue_linux.yml
+group_vars/blue_team_1_linux.yml
+group_vars/blue_team_1_windows.yml
+group_vars/blue_team_2_linux.yml
+group_vars/blue_team_2_windows.yml
+group_vars/blue_windows.yml
+group_vars/linux.yml
+group_vars/windows.yml
+inventory.yml
+README.md
+requirements.yml
+roles/nix_base/tasks/ad_domain_join.yml
+roles/nix_base/tasks/main.yml
+roles/nix_grafana/defaults/main.yml
+roles/nix_grafana/handlers/main.yml
+roles/nix_grafana/tasks/main.yml
+roles/nix_mail/files/dovecot.conf
+roles/nix_mail/files/postfix.conf.j2
+roles/nix_mail/README.md
+roles/nix_mail/tasks/mail-server.yml
+roles/nix_rsyslog/README.md
+roles/nix_rsyslog/tasks/c_syslog.yml
+roles/nix_rsyslog/tasks/cli_syslog.yml
+roles/nix_web_stack/files/config.php
+roles/nix_web_stack/files/index.php
+roles/nix_web_stack/files/mysql_setup.sql
+roles/nix_web_stack/files/nginx.conf
+roles/nix_web_stack/files/score.php
+roles/nix_web_stack/files/style.css
+roles/nix_web_stack/inventory.ini
+roles/nix_web_stack/README.md
+roles/nix_web_stack/tasks/main.yml
+roles/win_base/tasks/main.yml
+roles/win_dc_dns/ansible.cfg
+roles/win_dc_dns/deploy_dc.yml
+roles/win_dc_dns/README.md
+roles/win_dc_dns/tasks/main.yml
+roles/win_domain_join/tasks/main.yml
+roles/win_ldap_kerberos/tasks/main.yml
+roles/win_net_tools/net_tools_no_firewall.yml
+roles/win_net_tools/README.md
+roles/win_net_tools/win-inventory.ini
+roles/win_old_ldap/ansible.cfg
+roles/win_old_ldap/base.ldif
+roles/win_old_ldap/Features.yml
+roles/win_old_ldap/inventory.ini
+roles/win_old_ldap/LDAP-Setup.yml
+roles/win_old_ldap/README.md
+roles/win_old_ldap/vars/ldap_users.yml
+roles/win_old_ldap/vars/ldap.yml
+roles/win_smb_ftp/enable_winrm.ps1
+roles/win_smb_ftp/tasks/main.yml
+roles/win_winrm/README.md
+roles/win_winrm/tasks/main.yml
+roles/win_winrm/winrm-deploy.yml
+scripts/deploy-ssh-keys.sh
+site.yml
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="deploy_ssh_key.yml">
+---
+# Install your SSH public key on Linux targets for password-less Ansible runs.
+#
+# Requires sshpass on the Ansible control node when using ansible_password (see group_vars/blue_linux.yml).
+#
+# Default mode forces password-only SSH (no pubkey), for fresh hosts with PasswordAuthentication.
+#
+# If sshd uses AuthenticationMethods publickey,password (both required), password-only clients cannot
+# connect. Then run with:
+#   -e deploy_ssh_force_password_only=false
+#   -e ansible_ssh_private_key_file=/path/to/key_already_in_authorized_keys
+# (plus ansible_password from group_vars for the second factor, if required).
+#
+# Usage (from ansible/):
+#   ansible-playbook -i inventory.yml deploy_ssh_key.yml -e ssh_public_key_file=$HOME/.ssh/id_ed25519.pub
+#
+# Or use scripts/deploy-ssh-keys.sh which picks a default key path.
+
+- name: Deploy SSH public key to Linux hosts
+  hosts: "{{ target_group | default('blue_linux') }}"
+  gather_facts: false
+  become: false
+  vars:
+    # When true: only password auth (typical bootstrap). When false: allow pubkey so sshd can require publickey+password.
+    deploy_ssh_force_password_only: true
+    deploy_ssh_args_password_only: "-o StrictHostKeyChecking=no -o PreferredAuthentications=password -o PubkeyAuthentication=no"
+    deploy_ssh_args_pubkey_ok: "-o StrictHostKeyChecking=no"
+    ansible_ssh_common_args: "{{ (deploy_ssh_force_password_only | bool) | ternary(deploy_ssh_args_password_only, deploy_ssh_args_pubkey_ok) }}"
+  tasks:
+    - name: Ensure bootstrap user has controller public key
+      ansible.builtin.authorized_key:
+        user: "{{ bootstrap_user.username }}"
+        state: present
+        key: "{{ lookup('file', ssh_public_key_file) }}"
+</file>
+
+<file path="group_vars/all.yml">
+# Common variables for all hosts
+# Do not set ansible_user / ansible_connection here — Linux uses bootstrap_user (cyberrange) in
+# blue_linux.yml; Windows uses WinRM in blue_windows.yml / windows_dc.yml. A global ansible_user
+# breaks Linux SSH (Gathering Facts) if it overrides cyberrange.
+
+default_password: "Password123!"
+admin_def_passwd: "ChangeThisImmediately!"
+
+# "Bootstrap" account used before competition user provisioning.
+bootstrap_user:
+  username: "cyberrange"
+  password: "Cyberrange123!"
+
+# Accounts created on all Blue Team hosts.
+blue_shared_users:
+  - { name: "greyteam", password: "Hockey123!" }
+  - { name: "scoring", password: "Hockey123!" }
+  - { name: "cia", password: "ColdWar123!" }
+  - { name: "kgb", password: "ColdWar123!" }
+
+# Password applied to all Blue Team role-specific users.
+blue_team_user_password: "Change.me123!"
+
+# Windows WinRM local account on gold images (members + DC **before** promotion). See blue_windows.yml.
+windows_local_winrm_password: "DeployWindows123!"
+
+# After a host is promoted to **domain controller**, WinRM with local `ansible` is often rejected.
+# Set to **true** so bardown (windows_dc) uses **ad_domain_join** (e.g. LAKEPLACID\greyteam) for Ansible.
+# **true** = WinRM to bardown as LAKEPLACID\greyteam (required after DCPromo; local ansible is rejected).
+# **false** = only for the first win_dc_dns run on a brand-new workgroup image. Most lab reruns use true.
+windows_dc_winrm_use_domain_account: true
+
+# OpenStack / tenant upstream DNS for non-AD lookups (apt mirrors, etc.). Split-DNS still routes
+# lakeplacid.local to the team DC. On broken DHCP/neutron DNS, set this (e.g. ["10.0.0.2"]) or apt
+# and realm discover fail even though /etc/resolv.conf shows 127.0.0.53.
+openstack_dns_servers: []
+
+# Write a systemd-resolved drop-in (/etc/systemd/resolved.conf.d/99-ad-split-dns.conf) so
+# AD split-DNS survives reboots and NM refreshes without touching NM connection profiles.
+nix_ad_persist_resolved_dropin: true
+# Also push DC IP into the NM connection profile (additive — never removes DHCP DNS).
+nix_ad_persist_dns_nmcli: true
+
+# Linux AD join method:
+# - adcli (default): strict per-team DC targeting (recommended for isolated teams sharing same domain name)
+# - realm: DNS-based realm join path
+nix_ad_join_method: "realm"
+
+# After adcli join, run `realm join -U <ad_domain_join.username> --verbose <ad_domain>` so realmd/sssd
+# stay in sync (realm list, realm permit). Uses ad_domain_join.password (e.g. Hockey123!).
+nix_ad_realm_join_verbose_after_adcli: true
+
+# Keep optional AD preflight validators disabled for faster/leaner runs.
+# Set true only when actively troubleshooting DNS/discovery issues.
+nix_ad_preflight_checks: false
+
+# Mirror allowlisted domain users into libnss-extrausers (flat file under /var/lib/extrausers/passwd).
+# If the libnss-extrausers package cannot be installed (e.g. 20.04 + bad mirror DNS), those steps skip.
+nix_ad_nss_extrausers: true
+
+# Active Directory (used for realm / domain join on members). Must match windows_dc.domain_name.
+ad_domain: "lakeplacid.local"
+# Credentials for joining members to AD (e.g. Domain Admin).
+ad_domain_join:
+  username: "greyteam"
+  password: "Hockey123!"
+</file>
+
+<file path="group_vars/blue_linux.yml">
+---
+# Connection and privilege escalation — bootstrap user cyberrange (see all.yml → bootstrap_user).
+# Domain join uses ad_domain_join (greyteam) inside nix_base for realm join -U only.
+ansible_connection: ssh
+ansible_user: "{{ bootstrap_user.username }}"
+ansible_password: "{{ bootstrap_user.password }}"
+ansible_become: true
+ansible_become_method: sudo
+ansible_become_password: "{{ bootstrap_user.password }}"
+ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+
+# Join Linux hosts to AD via realmd/sssd in nix_base (after DC is deployed).
+nix_ad_domain_join: true
+</file>
+
+<file path="group_vars/blue_team_1_linux.yml">
+---
+team_domain_controller_ip: "10.100.2.11"
+
+blue_team_admin_users:
+  - herb_brooks
+  - craig_patrick
+  - jimmy_carter
+  - eruzione
+  - jim_craig
+
+blue_team_local_users:
+  - rob_mclanahan
+  - mark_johnson
+  - ken_morrow
+  - dave_silk
+  - jack_oh_callahan
+  - dave_christian
+  - buzz_schneider
+  - bob_suter
+</file>
+
+<file path="group_vars/blue_team_1_windows.yml">
+---
+team_domain_controller: "blue1-bardown"
+team_domain_controller_ip: "10.100.2.11"
+windows_ad_domain_join: true
+
+# AD users provisioned on the team DC. is_admin: true -> Domain Admins; false -> standard domain user (Domain Users).
+windows_domain_team_users:
+  - { sam: "herb_brooks", given: "Herb", surname: "Brooks", password: "Change.me123!", is_admin: true }
+  - { sam: "craig_patrick", given: "Craig", surname: "Patrick", password: "Change.me123!", is_admin: true }
+  - { sam: "jimmy_carter", given: "Jimmy", surname: "Carter", password: "Change.me123!", is_admin: true }
+  - { sam: "eruzione", given: "Eruzione", surname: "Coach", password: "Change.me123!", is_admin: true }
+  - { sam: "jim_craig", given: "Jim", surname: "Craig", password: "Change.me123!", is_admin: true }
+  - { sam: "rob_mclanahan", given: "Rob", surname: "McLanahan", password: "Change.me123!", is_admin: false }
+  - { sam: "mark_johnson", given: "Mark", surname: "Johnson", password: "Change.me123!", is_admin: false }
+  - { sam: "ken_morrow", given: "Ken", surname: "Morrow", password: "Change.me123!", is_admin: false }
+  - { sam: "dave_silk", given: "Dave", surname: "Silk", password: "Change.me123!", is_admin: false }
+  - { sam: "jack_oh_callahan", given: "Jack", surname: "OCallahan", password: "Change.me123!", is_admin: false }
+  - { sam: "dave_christian", given: "Dave", surname: "Christian", password: "Change.me123!", is_admin: false }
+  - { sam: "buzz_schneider", given: "Buzz", surname: "Schneider", password: "Change.me123!", is_admin: false }
+  - { sam: "bob_suter", given: "Bob", surname: "Suter", password: "Change.me123!", is_admin: false }
+</file>
+
+<file path="group_vars/blue_team_2_linux.yml">
+---
+team_domain_controller_ip: "10.100.3.11"
+
+blue_team_admin_users:
+  - tikhonov
+  - kulagin
+  - brezhnev
+  - tretiak
+  - larionov
+
+blue_team_local_users:
+  - zhukov
+  - gusev
+  - makarov
+  - fetisov
+  - kasatonov
+  - krutov
+  - lebedev
+  - vasiliev
+</file>
+
+<file path="group_vars/blue_team_2_windows.yml">
+---
+team_domain_controller: "blue2-bardown"
+team_domain_controller_ip: "10.100.3.11"
+windows_ad_domain_join: true
+
+# AD users provisioned on the team DC. is_admin: true -> Domain Admins; false -> standard domain user (Domain Users).
+windows_domain_team_users:
+  - { sam: "tikhonov", given: "Viktor", surname: "Tikhonov", password: "Change.me123!", is_admin: true }
+  - { sam: "kulagin", given: "Boris", surname: "Kulagin", password: "Change.me123!", is_admin: true }
+  - { sam: "brezhnev", given: "Leonid", surname: "Brezhnev", password: "Change.me123!", is_admin: true }
+  - { sam: "tretiak", given: "Vladislav", surname: "Tretiak", password: "Change.me123!", is_admin: true }
+  - { sam: "larionov", given: "Igor", surname: "Larionov", password: "Change.me123!", is_admin: true }
+  - { sam: "zhukov", given: "Georgy", surname: "Zhukov", password: "Change.me123!", is_admin: false }
+  - { sam: "gusev", given: "Alexei", surname: "Gusev", password: "Change.me123!", is_admin: false }
+  - { sam: "makarov", given: "Sergei", surname: "Makarov", password: "Change.me123!", is_admin: false }
+  - { sam: "fetisov", given: "Viacheslav", surname: "Fetisov", password: "Change.me123!", is_admin: false }
+  - { sam: "kasatonov", given: "Alexei", surname: "Kasatonov", password: "Change.me123!", is_admin: false }
+  - { sam: "krutov", given: "Vladimir", surname: "Krutov", password: "Change.me123!", is_admin: false }
+  - { sam: "lebedev", given: "Valery", surname: "Lebedev", password: "Change.me123!", is_admin: false }
+  - { sam: "vasiliev", given: "Sergei", surname: "Vasiliev", password: "Change.me123!", is_admin: false }
+</file>
+
+<file path="group_vars/blue_windows.yml">
+---
+# WinRM settings for Blue Team Windows hosts.
+ansible_connection: winrm
+ansible_user: ansible
+ansible_password: "{{ windows_local_winrm_password }}"
+ansible_port: 5986
+ansible_winrm_scheme: https
+ansible_winrm_transport: ntlm
+ansible_winrm_server_cert_validation: ignore
+</file>
+
+<file path="group_vars/linux.yml">
+---
+# Linux-specific variables
+
+# Grafana
+grafana:
+  http_port: 3000
+  domain: "CharlieGreyTeam"
+  root_url: "http://CharlieGreyTeam: 3000/"
+  admin_user: "admin"
+  admin_password: "Password123!"
+
+# Mail Server (Postfix + Dovecot)
+mail_server:
+  ssl:
+    country: "US"
+    state: "NewYork"
+    locality: "Rochester"
+    organization: "CSEC473"
+    org_unit: "Charlie"
+    common_name: "example.com"
+  postfix:
+    hostname: "smtp"
+    domain: "example.com"
+    allowed_networks: "10.0.100.0/24, 10.0.1.0/24"
+
+# Web Stack (Nginx + MySQL)
+web_stack:
+  web_root: "/var/www/html/miracle_ice"
+  mysql:
+    root_password: "examplepassword"
+    app_user: "greyteam"
+    app_password: "testpass"
+    database: "testdb"
+
+# rsyslog
+rsyslog:
+  port: 514
+  remote_log_dir: "/var/log/remote"
+  logrotate_size: "100k"
+  logrotate_rotate: 2
+</file>
+
+<file path="group_vars/windows.yml">
+---
+# Windows-specific variables
+
+# Same FQDN as windows_dc.domain_name (explicit for templating order).
+ad_domain: "lakeplacid.local"
+
+# Windows Domain Controller + DNS
+windows_dc:
+  domain_name: "lakeplacid.local"
+  netbios_name: "LAKEPLACID"
+  safe_mode_password: "Password123!"
+  ou_name: "GreyTeam"
+  group_name: "BlueTeamAdmins"
+  deployment_team: "host_team"
+  dns_records:
+    blue_team_1:
+      - { name: "blue1-cross-check", ip: "10.100.2.3" }
+      - { name: "blue1-hat-trick", ip: "10.100.2.4" }
+      - { name: "blue1-triple-deke", ip: "10.100.2.5" }
+      - { name: "blue1-toe-drag", ip: "10.100.2.6" }
+      - { name: "blue1-clapper", ip: "10.100.2.7" }
+      - { name: "blue1-backcheck", ip: "10.100.2.8" }
+      - { name: "blue1-dump-n-chase", ip: "10.100.2.9" }
+      - { name: "blue1-snapshot", ip: "10.100.2.10" }
+      - { name: "blue1-bardown", ip: "10.100.2.11" }
+    blue_team_2:
+      - { name: "blue2-cross-check", ip: "10.100.3.3" }
+      - { name: "blue2-hat-trick", ip: "10.100.3.4" }
+      - { name: "blue2-triple-deke", ip: "10.100.3.5" }
+      - { name: "blue2-toe-drag", ip: "10.100.3.6" }
+      - { name: "blue2-clapper", ip: "10.100.3.7" }
+      - { name: "blue2-backcheck", ip: "10.100.3.8" }
+      - { name: "blue2-dump-n-chase", ip: "10.100.3.9" }
+      - { name: "blue2-snapshot", ip: "10.100.3.10" }
+      - { name: "blue2-bardown", ip: "10.100.3.11" }
+
+# Windows SMB + FTP
+windows_smb_ftp:
+  smb:
+    share_name: "CDTShare"
+    share_path: "C:\\CDTShare"
+    allowed_group: "CDTShareUsers"
+    user: "cdtshareuser"
+    password: "P@ssw0rd!ChangeMe123"
+  ftp:
+    site_name: "Win_Legacy_Svc"
+    root_path: "C:\\Windows\\Logs\\FTP_Archive"
+    payload_path: "C:\\Windows\\System32\\Tasks_Config.ps1"
+    task_name: "Microsoft-Windows-Disk-Maintenance"
+
+# Windows WinRM
+windows_winrm:
+  ansible_user:
+    username: "ct_ansible"
+    password: "Password123!"
+  banner:
+    directory: "C:\\ProgramData\\csec473"
+    filename: "banner.txt"
+    text: |
+      CSEC-473 HW2 - Made by Ansible :)
+      Host: {{ inventory_hostname }}
+  monitored_service: "wuauserv"
+
+# Domain users provisioned on both Domain Controllers (shared accounts; all Domain Admins).
+windows_domain_common_users:
+  - { sam: "greyteam", given: "Grey", surname: "Team", password: "Hockey123!", is_admin: true }
+  - { sam: "scoring", given: "Scoring", surname: "Service", password: "Hockey123!", is_admin: true }
+  - { sam: "cia", given: "Central", surname: "Intelligence", password: "ColdWar123!", is_admin: true }
+  - { sam: "kgb", given: "Komitet", surname: "Gosbezopasnosti", password: "ColdWar123!", is_admin: true }
+</file>
+
+<file path="inventory.yml">
+all:
+  children:
+    blue_team_1:
+      children:
+        blue_team_1_linux:
+          hosts:
+            blue1-cross-check:
+              ansible_host: 10.100.2.3
+            blue1-hat-trick:
+              ansible_host: 10.100.2.4
+            blue1-triple-deke:
+              ansible_host: 10.100.2.5
+            blue1-toe-drag:
+              ansible_host: 10.100.2.6
+            blue1-clapper:
+              ansible_host: 10.100.2.7
+            blue1-backcheck:
+              ansible_host: 10.100.2.8
+        blue_team_1_windows:
+          hosts:
+            blue1-dump-n-chase:
+              ansible_host: 10.100.2.9
+            blue1-snapshot:
+              ansible_host: 10.100.2.10
+            blue1-bardown:
+              ansible_host: 10.100.2.11
+
+    blue_team_2:
+      children:
+        blue_team_2_linux:
+          hosts:
+            blue2-cross-check:
+              ansible_host: 10.100.3.3
+            blue2-hat-trick:
+              ansible_host: 10.100.3.4
+            blue2-triple-deke:
+              ansible_host: 10.100.3.5
+            blue2-toe-drag:
+              ansible_host: 10.100.3.6
+            blue2-clapper:
+              ansible_host: 10.100.3.7
+            blue2-backcheck:
+              ansible_host: 10.100.3.8
+        blue_team_2_windows:
+          hosts:
+            blue2-dump-n-chase:
+              ansible_host: 10.100.3.9
+            blue2-snapshot:
+              ansible_host: 10.100.3.10
+            blue2-bardown:
+              ansible_host: 10.100.3.11
+
+    blue_linux:
+      children:
+        blue_team_1_linux:
+        blue_team_2_linux:
+
+    blue_windows:
+      children:
+        blue_team_1_windows:
+        blue_team_2_windows:
+
+    # Service-oriented groups (used by the main competition playbook).
+    mcp_hosts:
+      hosts:
+        blue1-cross-check:
+        blue2-cross-check:
+
+    webservers:
+      hosts:
+        blue1-hat-trick:
+        blue2-hat-trick:
+
+    mysql_hosts:
+      hosts:
+        blue1-triple-deke:
+        blue2-triple-deke:
+
+    mail:
+      hosts:
+        blue1-toe-drag:
+        blue2-toe-drag:
+
+    monitoring_server:
+      hosts:
+        blue1-clapper:
+        blue2-clapper:
+
+    syslog_central:
+      hosts:
+        blue1-backcheck:
+        blue2-backcheck:
+
+    windows_fileserver:
+      hosts:
+        blue1-dump-n-chase:
+        blue2-dump-n-chase:
+
+    windows_iis:
+      hosts:
+        blue1-snapshot:
+        blue2-snapshot:
+
+    windows_dc:
+      hosts:
+        blue1-bardown:
+          dc_team: blue_team_1
+        blue2-bardown:
+          dc_team: blue_team_2
+
+    windows:
+      children:
+        blue_windows:
+
+    linux: 
+      children:
+        blue_linux:
+</file>
+
+<file path="README.md">
+# Ansible Infrastructure Deployment
+
+This directory contains Ansible playbooks and roles for deploying cyber competition infrastructure across Windows and Linux systems.
+
+## Role Structure
+
+Most roles use a small layout with `tasks/` (and `files/` when needed). Some roles also ship **`defaults/main.yml`** or **`handlers/main.yml`** (for example **`nix_grafana`**).
+
+```
+role_name/
+├── tasks/
+│   └── main.yml      # Role entrypoint (may include_tasks other YAML in the same folder)
+├── handlers/         # Optional (e.g. service restarts)
+├── defaults/         # Optional (fallback variables)
+└── files/            # Static files (if needed)
+```
+
+## Quick Start
+
+### Prerequisites
+
+1. **Install Ansible** (2.9+)
+   ```bash
+   sudo apt install ansible -y
+   ```
+2. **Install OpenStack Package**
+   ```bash
+   sudo apt install python3-openstackclient
+   ```
+
+3. **Install Required Collections**
+   ```bash
+   ansible-galaxy collection install -r requirements.yml
+   ```
+   That installs the versions listed in `requirements.yml` (Windows, Microsoft AD, Docker, etc.).
+
+4. **Configure Inventory**
+   Create or edit `inventory.yml` with your target hosts:
+   ```yaml
+   all:
+     children:
+       windows_dc:
+         hosts:
+           dc1:
+             ansible_host: 10.0.100.10
+       windows_fileserver:
+         hosts:
+           fileserver1:
+             ansible_host: 10.0.100.12
+       webservers:
+         hosts:
+           web1:
+             ansible_host: 10.0.100.20
+       # ... etc
+   ```
+
+### Deploy All Services
+
+```bash
+ansible-playbook -i inventory.yml site.yml
+```
+
+`inventory.yml` is the primary Blue Team competition inventory (including user provisioning).
+
+`site.yml` defaults Domain Controller deployment scope to each DC host's own team (`dc_team`), so no extra argument is required for normal runs.
+
+### Active Directory / domain join (Windows + Linux, one playbook)
+
+After **WinRM bootstrap** and **DC promotion** (`win_dc_dns`), `site.yml` joins **all** member Windows hosts (`blue_windows:!windows_dc`) and **all** Blue Linux hosts (`blue_linux`) to the domain—one command for both OS families.
+
+**Variables:** `windows_ad_domain_join` and per-team **`team_domain_controller`**, **`team_domain_controller_ip`**, and `ad_domain` / `ad_domain_join` (see `group_vars/blue_team_*_{linux,windows}.yml`). `win_domain_join` uses the DC **FQDN** for `microsoft.ad.membership`’s `domain_server` (not the IP alone). Linux uses `nix_ad_domain_join` in `group_vars/blue_linux.yml`.
+
+**WinRM on domain controllers (bardown):** After DCPromo, local **`ansible`** is usually rejected (`ntlm: credentials were rejected`). **`windows_dc_winrm_use_domain_account`** in **`all.yml`** defaults to **`true`** so Ansible uses **`LAKEPLACID\greyteam`** (from **`ad_domain_join`**) on DCs. Set **`false`** only for the **first** `win_dc_dns` run on a workgroup server, then set **`true`** again (or use `-e windows_dc_winrm_use_domain_account=false` once).
+
+**Linux SSH vs AD join:** Ansible uses **`bootstrap_user`** (**cyberrange**) for SSH and `sudo`; AD join auth uses **`ad_domain_join`** (**greyteam**). Split DNS now configures both **search** and **route-only** AD domains on the active link via `resolvectl domain <iface> {{ ad_domain }} ~{{ ad_domain }}` so `lakeplacid.local` routes to team DC while OpenStack DNS remains available for non-AD names (including `openstacklocal` and apt mirrors).
+
+**Linux upstream DNS discovery order:**  
+1) explicit `openstack_dns_servers` (group_vars/inventory),  
+2) `nmcli -g IP4.DNS device show <default_iface>`,  
+3) `resolvectl dns <default_iface>`.  
+The role fails only if all three are empty.
+
+**OpenStack requirement:** set `openstack_dns_servers` in `group_vars/all.yml` when per-link DNS auto-discovery is empty in your environment. Example:  
+`openstack_dns_servers: ["10.0.0.2","10.0.0.3"]`
+
+**Linux AD preflight checks (actionable failures):** `dig @<team_dc_ip> {{ ad_domain }}`, `dig @<team_dc_ip> _ldap._tcp.dc._msdcs.{{ ad_domain }} SRV`, `resolvectl query {{ ad_domain }}`, `resolvectl query _ldap._tcp.{{ ad_domain }} --type=SRV`, `adcli info {{ ad_domain }} --domain-controller=<team_dc_ip>`, plus TCP 53/88/389 and `realm discover`.
+
+**Join method default:** `nix_ad_join_method: "adcli"` (strict per-DC targeting for dual isolated team ADs with same domain name). Optional override: `-e nix_ad_join_method=realm`.
+
+**Windows temp cleanup warnings:** `Failure cleaning temp path … Incorrect function` / `NtSetInformationFile` are often benign (upgrade `ansible.windows` if noisy). Avoid custom **`ansible_remote_tmp`** under **`C:\Windows\Temp\...`** unless that folder exists — it can cause `DirectoryNotFoundException` during facts.
+
+**Domain stack only** (no scored SMB/web/mail/Grafana/rsyslog plays):
+
+```bash
+ansible-playbook -i inventory.yml site.yml --tags domain_stack
+```
+
+**Full stack** (default) runs `domain_stack` plays and then **`services`**-tagged plays.
+
+Optional override for DC/DNS scope:
+```bash
+# Team 1 only
+ansible-playbook -i inventory.yml site.yml -e windows_dc_deployment_team=blue_team_1
+
+# Team 2 only
+ansible-playbook -i inventory.yml site.yml -e windows_dc_deployment_team=blue_team_2
+```
+
+### Deploy Specific Service
+
+```bash
+# Windows bootstrap (WinRM/base)
+ansible-playbook -i inventory.yml site.yml --limit windows
+
+# Windows Domain Controller / DNS
+ansible-playbook -i inventory.yml site.yml --limit windows_dc
+
+# Windows SMB service
+ansible-playbook -i inventory.yml site.yml --limit windows_fileserver
+
+# Linux Web Stack (Nginx/MySQL stack role)
+ansible-playbook -i inventory.yml site.yml --limit webservers
+
+# Linux Grafana service
+ansible-playbook -i inventory.yml site.yml --limit monitoring_server
+
+# Linux rsyslog central service
+ansible-playbook -i inventory.yml site.yml --limit syslog_central
+```
+
+### Deploy SSH public keys (Linux)
+
+**Reach the host before you fix passwords or keys.** If Ansible reports **UNREACHABLE**, **Connection timed out**, or **No route to host**, the control machine often cannot open **TCP 22** to **`ansible_host`**. That is separate from “wrong password” or **AuthenticationMethods**.
+
+On **each Linux VM you cannot reach** (use the VM console, hypervisor, or physical access—**not** SSH):
+
+1. **Install and start SSH** (Ubuntu Desktop does not always have a listening SSH server until you add it):
+   ```bash
+   sudo apt update
+   sudo apt install -y openssh-server
+   sudo systemctl enable --now ssh
+   ```
+2. **Confirm sshd is listening on the network**, not only loopback:
+   ```bash
+   ss -tlnp | grep ':22'
+   ```
+   You want **`0.0.0.0:22`** or **`[::]:22`**. If nothing listens, check **`sudo systemctl status ssh`** and logs: **`journalctl -u ssh -e`**.
+3. **Firewall:** if **UFW** is enabled, allow SSH:
+   ```bash
+   sudo ufw allow OpenSSH
+   # or: sudo ufw allow 22/tcp
+   sudo ufw reload
+   sudo ufw status
+   ```
+4. **Inventory and network:** `inventory.yml` → **`ansible_host`** must be an IP (or DNS name) that the **Ansible controller can route to**. OpenStack/security groups, campus Wi‑Fi client isolation, or wrong VLAN will block traffic even when sshd is fine on the VM.
+
+From the **control node** (quick checks):
+
+```bash
+nc -vz <ansible_host> 22
+ssh -v cyberrange@<ansible_host>
+```
+
+If **`nc`** fails with timeout or “Connection refused”, fix **SSH install / listen address / firewall / cloud SG / routing** on the VM or network first; only then use **`deploy-ssh-keys.sh`** and the password-vs-pubkey notes below.
+
+---
+
+Before relying on key-based SSH for Blue Team Linux hosts, push your controller’s public key onto the **`bootstrap_user`** account (see `group_vars/all.yml` → `bootstrap_user`, typically **`cyberrange`** with the password from `group_vars/blue_linux.yml`).
+
+**Default behavior:** the playbook adds **`-o PreferredAuthentications=password -o PubkeyAuthentication=no`** so Ansible can log in with **only the password** (no key on the controller yet). That matches typical server images.
+
+**Hosts that require public key *and* password:** some desktops or hardened images set sshd **`AuthenticationMethods publickey,password`** (both). Then a client that disables pubkey **cannot** authenticate, so manual tests like `ssh -o PubkeyAuthentication=no cyberrange@…` will always fail. For those hosts you must either:
+
+- **One-time relax sshd** (console): e.g. set **`AuthenticationMethods any`** or **`password`** until keys are deployed, then restore policy; or  
+- **Use an identity already in `authorized_keys`** on the VM: run the deploy playbook with **`deploy_ssh_force_password_only=false`** and pass **`ansible_ssh_private_key_file`** for that private key. Ansible will use **pubkey + password** (still needs **`sshpass`** for the password leg when `ansible_password` is set).
+
+**Control node prerequisite:** install **`sshpass`** on the machine where you run Ansible whenever **`ansible_password`** is used. Without it, you will see: *“you must install the sshpass program”*.
+
+```bash
+# Debian / Ubuntu
+sudo apt install -y sshpass
+
+# RHEL / Fedora
+sudo dnf install -y sshpass
+```
+
+**Playbook:** `deploy_ssh_key.yml`  
+**Defaults:** hosts = inventory group **`blue_linux`** (override with **`-e target_group=…`**), key file passed explicitly or chosen by the helper script.
+
+**Helper script:** `ansible/scripts/deploy-ssh-keys.sh`. It changes into `ansible/` before running the playbook, so you can invoke it from `ansible/` as `./scripts/deploy-ssh-keys.sh` or from the repo root as `ansible/scripts/deploy-ssh-keys.sh`.
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
+cd ansible
+chmod +x scripts/deploy-ssh-keys.sh
+./scripts/deploy-ssh-keys.sh ~/.ssh/id_ed25519.pub
+INVENTORY=my-inventory.yml ./scripts/deploy-ssh-keys.sh
+./scripts/deploy-ssh-keys.sh -- --limit blue_team_1_linux
+```
+
+**Multi-method sshd** (pubkey + password required): use a private key that is **already trusted** on the target, and allow pubkey in SSH options:
+
+```bash
+cd ansible
+DEPLOY_SSH_FORCE_PASSWORD_ONLY=false \
+ANSIBLE_SSH_PRIVATE_KEY_FILE=~/.ssh/image_bootstrap_key \
+  ./scripts/deploy-ssh-keys.sh ~/.ssh/id_ed25519.pub
+```
+
+Or with `ansible-playbook` directly:
+
+```bash
+ansible-playbook -i inventory.yml deploy_ssh_key.yml \
+  -e ssh_public_key_file=$HOME/.ssh/id_ed25519.pub \
+  -e deploy_ssh_force_password_only=false \
+  -e ansible_ssh_private_key_file=$HOME/.ssh/image_bootstrap_key
+```
+
+The script sets **`SSH_PUBLIC_KEY_FILE`**, tries common paths (`~/.ssh/id_ed25519.pub`, `id_rsa.pub`, and Windows **`USERPROFILE`**), and passes **`target_group`** (default **`blue_linux`**, overridable with env **`TARGET_GROUP`**) into the playbook.
+
+**Manual run:**
+
+```bash
+cd ansible
+ansible-playbook -i inventory.yml deploy_ssh_key.yml -e ssh_public_key_file=$HOME/.ssh/id_ed25519.pub
+ansible-playbook -i inventory.yml deploy_ssh_key.yml -e ssh_public_key_file=$HOME/.ssh/id_ed25519.pub -e target_group=blue_team_2_linux
+```
+
+Afterward, point Ansible at your private key, for example:
+
+```bash
+ansible-playbook -i inventory.yml site.yml --private-key ~/.ssh/id_ed25519
+```
+
+Or set **`ansible_ssh_private_key_file`** in `group_vars/blue_linux.yml` (or host vars) so you do not need **`--private-key`** every time.
+
+### Standalone Role Playbook
+
+```bash
+# Domain Controller + DNS role wrapper
+ansible-playbook -i inventory.yml roles/win_dc_dns/deploy_dc.yml
+
+# Domain Controller + DNS role wrapper (team specific)
+ansible-playbook -i inventory.yml roles/win_dc_dns/deploy_dc.yml -e windows_dc_deployment_team=blue_team_1
+```
+
+## Roles Overview
+
+### Windows Roles
+
+#### `win_base`
+**Purpose:** Common Windows system setup  
+**Tasks:**
+- Ensures WinRM service is enabled
+- Enables File and Printer Sharing firewall rules
+
+**Usage:** Included automatically by other Windows roles
+
+#### `win_dc_dns`
+**Purpose:** Deploy Windows Domain Controller with DNS  
+**Deploys:**
+- Active Directory Domain Services (AD DS)
+- DNS Server
+- Creates new domain
+- Creates OU, optional custom group (`BlueTeamAdmins`), and domain users; privileged roster users go to **Domain Admins**
+
+**Variables:** See `group_vars/windows.yml` → `windows_dc`
+
+**Inventory Group:** `windows_dc`
+
+#### `win_ldap_kerberos`
+**Purpose:** Deploy Windows server with LDAP + Kerberos (AD DS)  
+**Deploys:**
+- Active Directory Domain Services
+- LDAP directory services (port 389, SSL 636)
+- Kerberos authentication (KDC service)
+
+**Variables:** See `group_vars/windows.yml` → `windows_dc`
+
+**Inventory Group:** `windows_ldap`
+
+#### `win_winrm`
+**Purpose:** Configure WinRM and Ansible management environment  
+**Deploys:**
+- WinRM service configuration
+- Ansible user account
+- Login banner
+- Service monitoring
+
+**Variables:** See `group_vars/windows.yml` → `windows_winrm`
+
+**Inventory Group:** `windows`
+
+#### `win_smb_ftp`
+**Purpose:** Deploy SMB file share and FTP server  
+**Deploys:**
+- SMB file share with NTFS permissions
+- FTP server (IIS-based)
+- User/group management
+- Firewall rules
+- Optional persistence mechanism
+
+**Variables:** See `group_vars/windows.yml` → `windows_smb_ftp`
+
+**Inventory Group:** `windows_fileserver`
+
+### Linux Roles
+
+#### `nix_base`
+**Purpose:** Common Linux system setup  
+**Tasks:**
+- Updates apt cache
+- Installs common packages (curl, wget, gnupg, etc.)
+
+**Usage:** Included automatically by other Linux roles
+
+#### `nix_web_stack`
+**Purpose:** Deploy Nginx + MySQL web stack using Docker  
+**Deploys:**
+- Docker
+- MySQL container
+- PHP container (with MySQL support)
+- Nginx container
+- Database initialization
+
+**Variables:** See `group_vars/linux.yml` → `web_stack`
+
+**Inventory Group:** `webservers`
+
+**Files:**
+- `files/nginx.conf` - Nginx configuration
+- `files/Dockerfile.php` - PHP Dockerfile
+- `files/index.php` - Web application
+- `files/init.sql` - Database initialization script
+
+#### `nix_mail`
+**Purpose:** Deploy Postfix + Dovecot mail server  
+**Deploys:**
+- Postfix (SMTP server)
+- Dovecot (IMAP/POP3 server)
+- SSL/TLS certificates
+- Service accounts (vmail)
+
+**Variables:** See `group_vars/linux.yml` → `mail_server`
+
+**Inventory Group:** `mail`
+
+**Files:**
+- `files/dovecot.conf` - Dovecot configuration
+
+#### `nix_grafana`
+**Purpose:** Install Grafana from the official APT repo and tune core `[server]` settings.
+
+**Deploys:**
+- Prerequisite packages (`apt-transport-https`, `ca-certificates`, `curl`, `gnupg`)
+- Grafana signing key under `/usr/share/keyrings/grafana.asc` and `deb [signed-by=…] https://apt.grafana.com stable main`
+- `grafana` package
+- `grafana.ini` lines for **`http_port`**, **`domain`**, and **`root_url`** (via `ansible.builtin.lineinfile`)
+- Optional **`GF_SECURITY_ADMIN_*`** in `/etc/default/grafana-server` when that file exists (after package install)
+- `grafana-server` enabled and started; handler restarts on config changes
+
+**Variables:** `site.yml` maps `group_vars/linux.yml` → `grafana` into flat role vars: `grafana_http_port`, `grafana_domain`, `grafana_root_url`, `grafana_admin_user`, `grafana_admin_password`. Defaults are in `roles/nix_grafana/defaults/main.yml`.
+
+**Inventory Group:** `monitoring_server` (see `site.yml`; Grafana play also enables **`nix_rsyslog`** in server mode on the same hosts if you want a combined monitoring + log receiver).
+
+#### `nix_rsyslog`
+**Purpose:** Centralized rsyslog—**one TCP receiver** and clients that forward everything to it.
+
+**Task layout:** Implementations live in split files under `roles/nix_rsyslog/tasks/`:
+- **`c_syslog.yml`** — central server: install/enable rsyslog, `/var/log/remote`, **imtcp** listener on **port 514**, per-host/program log paths, drop noisy **ansible** program logs, **logrotate** for remote logs (size **100k**, **hourly**, compress, two rotations).
+- **`cli_syslog.yml`** — clients: install/enable rsyslog, **`90-forward.conf`** forwarding **`*.*`** via TCP (`@@`) to the first host in inventory group **`syslog_central`**.
+
+Those files were written as standalone plays (`hosts: syslog_central` / `hosts: syslog_clients`). **`site.yml`** drives the same behavior through inventory groups and the play variable **`rsyslog_mode`** (`"server"` or `"client"`): `syslog_central`, `monitoring_server` (with `rsyslog_mode: "server"`), and `blue_linux:!syslog_central` (client). For the role to run correctly when included by `site.yml`, **`tasks/main.yml` must `include_tasks` the server or client task list according to `rsyslog_mode`** (or inline equivalent tasks). See also `roles/nix_rsyslog/README.md` for paths and rotation behavior.
+
+**Variables:** Optional tuning in `group_vars/linux.yml` → `rsyslog`; forwarding resolution requires at least one host in **`syslog_central`** so clients can target `groups['syslog_central'][0]`.
+
+**Inventory groups (typical):**
+- **`syslog_central`** / **`monitoring_server`** — receiver (`rsyslog_mode: "server"`)
+- **`blue_linux:!syslog_central`** — forwarders (`rsyslog_mode: "client"`)
+
+## Variable Management
+
+### Variable Files
+
+Variables are organized in `group_vars/`:
+
+- **`all.yml`** - Common variables for all hosts
+- **`windows.yml`** - Windows-specific variables
+- **`linux.yml`** - Linux-specific variables
+- **`blue_linux.yml`** - Blue Team Linux connection/bootstrap (`cyberrange`) and `nix_ad_domain_join`
+- **`blue_windows.yml`** - Blue Team Windows WinRM settings
+- **`blue_team_1_linux.yml`** / **`blue_team_2_linux.yml`** - Team DC IP for DNS/realm, roster name lists (reference)
+- **`blue_team_1_windows.yml`** / **`blue_team_2_windows.yml`** - Team DC IP, `windows_ad_domain_join`, `windows_domain_team_users` for the DC role
+
+### Variable Structure
+
+Variables are organized hierarchically:
+
+```yaml
+# Windows example
+windows_dc:
+  domain_name: "hockey.cdtcharlie.com"
+  netbios_name: "HOCKEY1"
+  safe_mode_password: "Password123!"
+  # ...
+
+# Linux example
+grafana:
+  http_port: 3000
+  domain: "CharlieGreyTeam"
+  root_url: "http://CharlieGreyTeam:3000/"
+  admin_user: "admin"
+  admin_password: "Password123!"
+  # ...
+```
+
+### Using Variables in Playbooks
+
+Variables are referenced in `site.yml` playbook `vars:` sections:
+
+```yaml
+vars:
+  domain_name: "{{ windows_dc.domain_name }}"
+  admin_password: "{{ grafana.admin_password }}"
+```
+
+## Inventory Groups
+
+Recommended inventory groups:
+
+### Windows
+- `windows_dc` - Domain Controllers
+- `windows_fileserver` - SMB/FTP servers
+- `windows` - General Windows hosts (WinRM)
+- `windows_iis` - Reserved group for future IIS role
+
+### Linux
+- `mcp_hosts` - Reserved group for future MCP role
+- `webservers` - Web stack hosts
+- `mail` - Mail servers
+- `monitoring_server` - Grafana + rsyslog server (`nix_grafana` + `nix_rsyslog`)
+- `syslog_central` - Dedicated rsyslog **receiver** (TCP 514; logs under `/var/log/remote/` on that host)
+
+## Testing
+
+### Syntax Check
+```bash
+ansible-playbook -i inventory.yml site.yml --syntax-check
+```
+
+### Dry Run
+```bash
+ansible-playbook -i inventory.yml site.yml --check
+```
+
+### Verbose Output
+```bash
+ansible-playbook -i inventory.yml site.yml -v
+```
+
+### Test Specific Role
+```bash
+ansible-playbook -i inventory.yml site.yml --limit windows_dc --check
+```
+
+## Design Principles
+
+1. **Simple Structure** - Prefer `tasks/` and `files/`; add `handlers/` or `defaults/` when a role needs them
+2. **No Templates** - Use `copy` with `content:` for variable substitution
+3. **Centralized Variables** - All variables in `group_vars/`
+4. **Idempotent** - Safe to run multiple times
+5. **Base Roles** - Common setup tasks in `win_base` and `nix_base`
+
+## File Handling
+
+### Static Files
+Static files (nginx.conf, dovecot.conf, etc.) are kept in `files/` directory and copied as-is.
+
+### Files with Variables
+For files that need variable substitution (like postfix.conf), use `copy` with `content:`:
+
+```yaml
+- name: Deploy config with variables
+  copy:
+    dest: /etc/service/config.conf
+    content: |
+      hostname = {{ hostname }}
+      domain = {{ domain }}
+```
+
+## Common Tasks
+
+### Update Variables
+Edit the appropriate `group_vars/*.yml` file:
+```bash
+# Edit Windows variables
+vim group_vars/windows.yml
+
+# Edit Linux variables
+vim group_vars/linux.yml
+```
+
+### Add New Role
+1. Create `roles/new_role/tasks/main.yml`
+2. Add `files/` directory if needed
+3. Add role to `site.yml`
+4. Add variables to appropriate `group_vars/` file
+
+### Debug Issues
+```bash
+# Verbose output
+ansible-playbook -i inventory.yml site.yml -vvv
+
+# Test on single host
+ansible-playbook -i inventory.yml site.yml --limit hostname
+
+# Check what would change
+ansible-playbook -i inventory.yml site.yml --check --diff
+```
+
+## Notes
+
+- All passwords are currently in plain text in `group_vars/` files
+- Consider implementing Ansible Vault for production use
+- Old role directories may still exist for reference (can be removed after verification)
+- Some roles may have old playbook files alongside new role structure (for reference)
+
+## Support
+
+For role-specific documentation, see individual role directories. Each role should have a `README.md` with detailed information.
+</file>
+
+<file path="requirements.yml">
+---
+# Install with: "ansible-galaxy collection install -r requirements.yml"
+collections:
+  - name: ansible.windows
+  - name: community.windows
+  - name: microsoft.ad
+  - name: community.docker
+</file>
+
+<file path="roles/nix_base/tasks/ad_domain_join.yml">
+---
+# realmd/sssd AD join — Ubuntu 20.04 / 22.04 / 24.04 (desktop and server).
+# OpenStack lab requirements:
+# - Keep OpenStack DNS working (openstacklocal / apt mirrors)
+# - Route lakeplacid.local to team DC using split DNS
+# - Prefer strict per-DC targeting (adcli)
+
+# Ubuntu 20.04 OpenStack images often use nova.clouds.archive.ubuntu.com; if that and archive.ubuntu.com
+# do not resolve (stub resolver / wrong link DNS), apply openstack_dns_servers before apt.
+- name: Default IPv4 interface for pre-AD-package DNS recovery
+  ansible.builtin.shell: |
+    set -euo pipefail
+    ip -4 route show default | head -1 | awk '{for (i=1;i<=NF;i++) if ($i=="dev") {print $(i+1); exit}}'
+  args:
+    executable: /bin/bash
+  register: nix_ad_pre_pkg_iface
+  changed_when: false
+  failed_when: false
+
+- name: Probe DNS for OpenStack Ubuntu mirror host (sources.list on many cloud images)
+  ansible.builtin.command: getent hosts nova.clouds.archive.ubuntu.com
+  register: nix_probe_nova_mirror
+  changed_when: false
+  failed_when: false
+
+- name: Probe DNS for archive.ubuntu.com when cloud mirror host does not resolve
+  ansible.builtin.command: getent hosts archive.ubuntu.com
+  register: nix_probe_archive_ubuntu
+  changed_when: false
+  failed_when: false
+  when: nix_probe_nova_mirror.rc != 0
+
+# Merge explicit openstack_dns_servers with per-link discovery (nmcli / resolvectl). No hard fail —
+# 20.04 Desktop often has usable DHCP DNS in nmcli even when openstack_dns_servers is unset.
+- name: Recover DNS for apt when cloud/archive mirrors do not resolve
+  when:
+    - nix_ad_pre_pkg_iface.stdout | default('') | trim | length > 0
+    - nix_probe_nova_mirror.rc != 0
+    - nix_probe_archive_ubuntu is not skipped
+    - nix_probe_archive_ubuntu.rc != 0
+  block:
+    - name: Discover DNS via nmcli for pre-package apt recovery
+      ansible.builtin.shell: |
+        set -euo pipefail
+        nmcli -g IP4.DNS device show "{{ nix_ad_pre_pkg_iface.stdout | trim }}" 2>/dev/null \
+          | tr '|' '\n' \
+          | sed 's/[[:space:]]//g' \
+          | sed '/^$/d' \
+          || true
+      args:
+        executable: /bin/bash
+      register: nix_pkg_nmcli_dns
+      changed_when: false
+      failed_when: false
+
+    - name: Discover DNS via resolvectl per-link for pre-package apt recovery
+      ansible.builtin.shell: |
+        set -euo pipefail
+        resolvectl dns "{{ nix_ad_pre_pkg_iface.stdout | trim }}" 2>/dev/null \
+          | sed -E 's/.*: *//' \
+          | tr ' ' '\n' \
+          | sed '/^$/d' \
+          || true
+      args:
+        executable: /bin/bash
+      register: nix_pkg_resolved_dns
+      changed_when: false
+      failed_when: false
+
+    - name: Merge DNS candidates for apt (openstack + nmcli + resolvectl)
+      ansible.builtin.set_fact:
+        nix_ad_pkg_dns_candidates: >-
+          {{
+            (
+              (openstack_dns_servers | default([]))
+              + (nix_pkg_nmcli_dns.stdout_lines | default([]) | map('trim') | reject('equalto', '') | reject('equalto', '127.0.0.53') | list)
+              + (nix_pkg_resolved_dns.stdout_lines | default([]) | map('trim') | reject('equalto', '') | reject('equalto', '127.0.0.53') | list)
+            ) | unique | list
+          }}
+
+    - name: Apply merged DNS to default route interface for apt
+      ansible.builtin.command:
+        argv: "{{ ['resolvectl', 'dns', (nix_ad_pre_pkg_iface.stdout | trim)] + nix_ad_pkg_dns_candidates }}"
+      when: nix_ad_pkg_dns_candidates | length > 0
+      changed_when: true
+      failed_when: false
+
+    - name: Flush systemd-resolved caches after apt DNS recovery
+      ansible.builtin.command: resolvectl flush-caches
+      when: nix_ad_pkg_dns_candidates | length > 0
+      changed_when: false
+      failed_when: false
+
+- name: Warn when mirror DNS still broken and no resolver IPs were found to apply
+  ansible.builtin.debug:
+    msg: >-
+      Could not resolve nova.clouds.archive.ubuntu.com or archive.ubuntu.com, and no DNS servers were
+      found from openstack_dns_servers, nmcli, or resolvectl. APT may still fail — set
+      openstack_dns_servers in group_vars/all.yml (e.g. ['10.0.0.2']). On host: resolvectl status ; nmcli dev show
+  when:
+    - nix_probe_nova_mirror.rc != 0
+    - nix_probe_archive_ubuntu is not skipped
+    - nix_probe_archive_ubuntu.rc != 0
+    - nix_ad_pkg_dns_candidates | default([]) | length == 0
+
+# Do not block the play on apt-get update (common on 20.04 Desktop when mirrors/DNS are flaky).
+- name: Update apt cache before AD packages (best effort)
+  ansible.builtin.command:
+    argv:
+      - apt-get
+      - update
+  register: nix_ad_apt_cache_update
+  failed_when: false
+  changed_when: nix_ad_apt_cache_update.rc == 0
+
+- name: Note when apt cache update failed (install still attempted)
+  ansible.builtin.debug:
+    msg: >-
+      apt-get update failed on this host (rc={{ nix_ad_apt_cache_update.rc }}); continuing with
+      package install without a fresh index. Fix DNS/mirrors if installs fail.
+  when: nix_ad_apt_cache_update.rc != 0
+
+- name: Install packages for AD domain join
+  ansible.builtin.apt:
+    name:
+      - realmd
+      - sssd
+      - sssd-tools
+      - libnss-sss
+      - libpam-sss
+      - adcli
+      - samba-common-bin
+      - oddjob-mkhomedir
+      - krb5-user
+      - ldap-utils
+      - dnsutils
+      - network-manager
+    state: present
+    update_cache: false
+  register: nix_ad_join_packages_apt
+  retries: 4
+  delay: 15
+  until: nix_ad_join_packages_apt is succeeded
+
+# libnss-extrausers is optional: Ubuntu 20.04 Desktop + OpenStack often cannot fetch it when DNS to
+# nova.clouds.archive.ubuntu.com fails — domain join does not require this package.
+- name: Install libnss-extrausers for NSS passwd mirror (optional; non-fatal if apt cannot fetch)
+  ansible.builtin.apt:
+    name: libnss-extrausers
+    state: present
+    update_cache: false
+  register: nix_ad_libnss_extrausers_pkg
+  failed_when: false
+
+- name: Detect whether libnss-extrausers is installed
+  ansible.builtin.shell: |
+    dpkg-query -W -f='${Status}' libnss-extrausers 2>/dev/null | grep -q 'install ok installed'
+  args:
+    executable: /bin/bash
+  register: nix_libnss_extrausers_dpkg_check
+  changed_when: false
+  failed_when: false
+
+- name: Record libnss-extrausers availability for extrausers nsswitch tasks
+  ansible.builtin.set_fact:
+    nix_libnss_extrausers_installed: "{{ nix_libnss_extrausers_dpkg_check.rc == 0 }}"
+
+- name: Note skipping NSS extrausers mirror when package is not installed
+  ansible.builtin.debug:
+    msg: >-
+      libnss-extrausers is not installed (apt fetch may have failed). Skipping extrausers nsswitch
+      and flat passwd materialization; domain join and SSSD are unaffected.
+  when:
+    - nix_ad_nss_extrausers | default(true)
+    - not (nix_libnss_extrausers_installed | default(false))
+
+- name: Check current realm membership
+  ansible.builtin.command: realm list
+  register: nix_realm_list
+  changed_when: false
+  failed_when: false
+
+- name: Start oddjobd for mkhomedir (if unit exists)
+  ansible.builtin.systemd:
+    name: oddjobd
+    state: started
+    enabled: true
+  failed_when: false
+
+- name: Domain-join preflight and join
+  when: ad_domain | lower not in (nix_realm_list.stdout | default('') | lower)
+  block:
+    - name: Detect default IPv4 egress interface
+      ansible.builtin.shell: |
+        set -euo pipefail
+        ip -4 route show default | head -1 | awk '{for (i=1;i<=NF;i++) if ($i=="dev") {print $(i+1); exit}}'
+      args:
+        executable: /bin/bash
+      register: nix_default_iface
+      changed_when: false
+      failed_when: false
+
+    - name: Fail if no default interface is detected
+      ansible.builtin.fail:
+        msg: >-
+          [Preflight: network] Could not detect a default IPv4 interface.
+          Fix host networking first, then rerun.
+      when: nix_default_iface.stdout | default('') | trim | length == 0
+
+    # nmcli -g outputs pipe-separated values on ONE line: "10.0.0.2 | 10.0.0.3 | 127.0.0.53"
+    # Split on | and emit one IP per line so downstream filters work correctly.
+    - name: Discover DNS via nmcli (preferred source)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        nmcli -g IP4.DNS device show "{{ nix_default_iface.stdout | trim }}" 2>/dev/null \
+          | tr '|' '\n' \
+          | sed 's/[[:space:]]//g' \
+          | sed '/^$/d' \
+          || true
+      args:
+        executable: /bin/bash
+      register: nix_nmcli_dns
+      changed_when: false
+      failed_when: false
+
+    - name: Discover DNS via resolvectl per-link (fallback source)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        resolvectl dns "{{ nix_default_iface.stdout | trim }}" 2>/dev/null \
+          | sed -E 's/.*: *//' \
+          | tr ' ' '\n' \
+          | sed '/^$/d' \
+          || true
+      args:
+        executable: /bin/bash
+      register: nix_resolved_dns
+      changed_when: false
+      failed_when: false
+
+    # Two separate set_fact tasks — nix_ad_resolvers must reference nix_upstream_resolvers
+    # AFTER it is defined; referencing it in the same set_fact task causes "undefined" errors.
+    - name: Build upstream resolver list
+      ansible.builtin.set_fact:
+        nix_upstream_resolvers: >-
+          {{
+            (
+              (openstack_dns_servers | default([]))
+              + (nix_nmcli_dns.stdout_lines | default([]) | map('trim') | reject('equalto', '') | reject('equalto', '127.0.0.53') | list)
+              + (nix_resolved_dns.stdout_lines | default([]) | map('trim') | reject('equalto', '') | reject('equalto', '127.0.0.53') | list)
+            ) | unique
+          }}
+
+    - name: Build AD resolver list (team DC first + upstream, deduplicated)
+      ansible.builtin.set_fact:
+        nix_ad_resolvers: "{{ ([team_domain_controller_ip] + nix_upstream_resolvers) | unique }}"
+
+    - name: Assert upstream DNS is available (OpenStack env requirement)
+      ansible.builtin.assert:
+        that:
+          - nix_upstream_resolvers | length > 0
+        fail_msg: >-
+          [Preflight: DNS upstream] No upstream DNS resolvers found.
+          Define openstack_dns_servers in group_vars/all.yml (example:
+          openstack_dns_servers: ['10.0.0.2','10.0.0.3']) when nmcli/resolvectl discovery is empty.
+      when: nix_ad_preflight_checks | default(false)
+
+    - name: Configure split-DNS resolvers (team DC first + upstream OpenStack DNS)
+      ansible.builtin.command:
+        argv: "{{ ['resolvectl', 'dns', (nix_default_iface.stdout | trim)] + nix_ad_resolvers }}"
+      changed_when: true
+
+    - name: Configure split-DNS search and routing domains for AD
+      ansible.builtin.command:
+        argv:
+          - resolvectl
+          - domain
+          - "{{ nix_default_iface.stdout | trim }}"
+          - "{{ ad_domain }}"
+          - "~{{ ad_domain }}"
+      changed_when: true
+
+    - name: Flush systemd-resolved caches
+      ansible.builtin.command: resolvectl flush-caches
+      changed_when: false
+      failed_when: false
+
+    # Drop-in is the most reliable persistence: survives reboots, NM refreshes, DHCP renewals.
+    # It does NOT change resolv.conf mode or remove existing resolvers — purely additive.
+    - name: Create systemd-resolved drop-in directory
+      ansible.builtin.file:
+        path: /etc/systemd/resolved.conf.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when: nix_ad_persist_resolved_dropin | default(true)
+
+    - name: Write systemd-resolved drop-in for AD split-DNS (reboot-safe)
+      ansible.builtin.copy:
+        dest: /etc/systemd/resolved.conf.d/99-ad-split-dns.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          # Managed by Ansible (nix_base/ad_domain_join) — do not edit manually.
+          [Resolve]
+          # DC first so lakeplacid.local resolves even when public DNS is slow.
+          DNS={{ (nix_ad_resolvers | join(' ')) }}
+          # Route lakeplacid.local queries to DC; fall through to upstream for everything else.
+          Domains={{ ad_domain }} ~{{ ad_domain }}
+      register: nix_resolved_dropin
+      when: nix_ad_persist_resolved_dropin | default(true)
+
+    - name: Restart systemd-resolved to apply drop-in
+      ansible.builtin.service:
+        name: systemd-resolved
+        state: restarted
+      when:
+        - nix_ad_persist_resolved_dropin | default(true)
+        - nix_resolved_dropin is changed
+
+    # Additive NM entry: adds DC IP to the connection's DNS list but keeps ignore-auto-dns OFF
+    # so DHCP-provided resolvers (e.g. 1.1.1.1/8.8.8.8 from cloud-init) are preserved.
+    - name: Persist DC IP in NetworkManager connection (additive, keeps DHCP DNS)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        iface="{{ nix_default_iface.stdout | trim }}"
+        conn="$(nmcli -t -f GENERAL.CONNECTION device show "$iface" 2>/dev/null | sed -n 's/^GENERAL.CONNECTION://p' | head -1 | tr -d '\r')"
+        conn="${conn#"${conn%%[![:space:]]*}"}"
+        conn="${conn%"${conn##*[![:space:]]}"}"
+        if [[ -z "$conn" || "$conn" == "--" ]]; then
+          echo "nmcli_skip_no_connection"
+          exit 0
+        fi
+        # Build a comma-separated list of DC + any explicit openstack_dns_servers.
+        # ignore-auto-dns is deliberately left OFF (no) so cloud-init/DHCP DNS is additive.
+        dc_ip="{{ team_domain_controller_ip }}"
+        extra="{{ openstack_dns_servers | join(',') }}"
+        if [[ -n "$extra" ]]; then
+          dns_csv="${dc_ip},${extra}"
+        else
+          dns_csv="$dc_ip"
+        fi
+        nmcli connection modify "$conn" \
+          ipv4.dns "$dns_csv" \
+          ipv4.dns-priority -50 \
+          ipv4.ignore-auto-dns no \
+          ipv4.dns-search "{{ ad_domain }} ~{{ ad_domain }}"
+        # reapply is safe here: ignore-auto-dns=no means DHCP DNS is still merged in.
+        nmcli device reapply "$iface" 2>/dev/null || nmcli connection up "$conn" 2>/dev/null || true
+        resolvectl flush-caches 2>/dev/null || true
+        echo "nmcli_persisted=$conn"
+      args:
+        executable: /bin/bash
+      register: nix_nmcli_dns_persist
+      changed_when: "'nmcli_persisted=' in (nix_nmcli_dns_persist.stdout | default(''))"
+      failed_when: false
+      when: nix_ad_persist_dns_nmcli | default(true)
+
+    - name: Validate AD A record via team DC
+      ansible.builtin.command:
+        argv:
+          - dig
+          - +short
+          - "@{{ team_domain_controller_ip }}"
+          - "{{ ad_domain }}"
+      register: nix_dig_a
+      changed_when: false
+      failed_when: (nix_dig_a.stdout | trim | length) == 0
+      when: nix_ad_preflight_checks | default(false)
+
+    - name: Validate AD SRV record via team DC
+      ansible.builtin.command:
+        argv:
+          - dig
+          - +short
+          - "@{{ team_domain_controller_ip }}"
+          - "_ldap._tcp.dc._msdcs.{{ ad_domain }}"
+          - SRV
+      register: nix_dig_srv_dc
+      changed_when: false
+      failed_when: (nix_dig_srv_dc.stdout | trim | length) == 0
+      when: nix_ad_preflight_checks | default(false)
+
+    - name: Validate split-DNS resolver query for AD domain
+      ansible.builtin.command:
+        argv:
+          - resolvectl
+          - query
+          - "{{ ad_domain }}"
+      register: nix_resolvectl_query_domain
+      changed_when: false
+      failed_when: nix_resolvectl_query_domain.rc != 0
+      when: nix_ad_preflight_checks | default(false)
+
+    - name: Validate split-DNS resolver query for LDAP SRV
+      ansible.builtin.command:
+        argv:
+          - resolvectl
+          - query
+          - "_ldap._tcp.{{ ad_domain }}"
+          - "--type=SRV"
+      register: nix_resolvectl_query_srv
+      changed_when: false
+      failed_when: nix_resolvectl_query_srv.rc != 0
+      when: nix_ad_preflight_checks | default(false)
+
+    - name: Validate adcli info against explicit team DC
+      ansible.builtin.command:
+        argv:
+          - adcli
+          - info
+          - "{{ ad_domain }}"
+          - "--domain-controller={{ team_domain_controller_ip }}"
+      register: nix_adcli_info
+      changed_when: false
+      failed_when: nix_adcli_info.rc != 0
+      when: nix_ad_preflight_checks | default(false)
+
+    - name: Validate realm discovery through split DNS
+      ansible.builtin.command:
+        argv:
+          - realm
+          - discover
+          - "{{ ad_domain }}"
+      register: nix_realm_discover
+      changed_when: false
+      failed_when: nix_realm_discover.rc != 0
+      when: nix_ad_preflight_checks | default(false)
+
+  rescue:
+    - name: Diagnostic - resolvectl status
+      ansible.builtin.command: resolvectl status
+      register: nix_diag_resolvectl_status
+      changed_when: false
+      failed_when: false
+      when: nix_ad_preflight_checks | default(false)
+
+    - name: Diagnostic - resolvectl dns iface
+      ansible.builtin.command:
+        argv:
+          - resolvectl
+          - dns
+          - "{{ nix_default_iface.stdout | default('') | trim }}"
+      register: nix_diag_resolvectl_dns
+      changed_when: false
+      failed_when: false
+      when:
+        - nix_ad_preflight_checks | default(false)
+        - nix_default_iface is defined
+
+    - name: Diagnostic - resolvectl domain iface
+      ansible.builtin.command:
+        argv:
+          - resolvectl
+          - domain
+          - "{{ nix_default_iface.stdout | default('') | trim }}"
+      register: nix_diag_resolvectl_domain
+      changed_when: false
+      failed_when: false
+      when:
+        - nix_ad_preflight_checks | default(false)
+        - nix_default_iface is defined
+
+    - name: Diagnostic - nmcli device show iface
+      ansible.builtin.command:
+        argv:
+          - nmcli
+          - device
+          - show
+          - "{{ nix_default_iface.stdout | default('') | trim }}"
+      register: nix_diag_nmcli_dev
+      changed_when: false
+      failed_when: false
+      when:
+        - nix_ad_preflight_checks | default(false)
+        - nix_default_iface is defined
+
+    - name: Diagnostic - /etc/resolv.conf
+      ansible.builtin.command:
+        argv: [cat, /etc/resolv.conf]
+      register: nix_diag_resolv_conf
+      changed_when: false
+      failed_when: false
+      when: nix_ad_preflight_checks | default(false)
+
+    - name: Fail with consolidated diagnostics
+      ansible.builtin.fail:
+        msg: |
+          [AD join preflight/join failed] Host={{ inventory_hostname }} DC={{ team_domain_controller_ip }}
+          Default iface: {{ nix_default_iface.stdout | default('n/a') | trim }}
+          Upstream resolvers (ordered): {{ nix_upstream_resolvers | default([]) }}
+          AD resolvers applied: {{ nix_ad_resolvers | default([]) }}
+          Join method: {{ nix_ad_join_method | default('adcli') }}
+          Define openstack_dns_servers if upstream resolvers are empty in OpenStack.
+
+          --- resolvectl status ---
+          {{ nix_diag_resolvectl_status.stdout | default('') }}
+          {{ nix_diag_resolvectl_status.stderr | default('') }}
+
+          --- resolvectl dns iface ---
+          {{ nix_diag_resolvectl_dns.stdout | default('') }}
+          {{ nix_diag_resolvectl_dns.stderr | default('') }}
+
+          --- resolvectl domain iface ---
+          {{ nix_diag_resolvectl_domain.stdout | default('') }}
+          {{ nix_diag_resolvectl_domain.stderr | default('') }}
+
+          --- nmcli device show iface ---
+          {{ nix_diag_nmcli_dev.stdout | default('') }}
+          {{ nix_diag_nmcli_dev.stderr | default('') }}
+
+          --- /etc/resolv.conf ---
+          {{ nix_diag_resolv_conf.stdout | default('') }}
+          {{ nix_diag_resolv_conf.stderr | default('') }}
+      when: nix_ad_preflight_checks | default(false)
+
+- name: Create home directories for domain logins
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-session
+    line: "session optional pam_mkhomedir.so skel=/etc/skel umask=0022"
+    state: present
+    create: false
+  failed_when: false
+
+# Domain Admins (AD group) + team admin accounts get sudo. Team local users are login-only (see permit/SSSD below).
+- name: Allow Domain Admins and team admin users full sudo via SSSD
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/99-ad-domain-admins
+    mode: "0440"
+    content: |
+      %Domain\ Admins@{{ ad_domain }} ALL=(ALL:ALL) ALL
+      %domain\ admins@{{ ad_domain }} ALL=(ALL:ALL) ALL
+      {% for u in (blue_team_admin_users | default([]) | unique) %}
+      {{ u }}@{{ ad_domain }} ALL=(ALL:ALL) ALL
+      {% endfor %}
+    validate: "/usr/sbin/visudo -cf %s"
+
+- name: Join with adcli (default strict per-DC) at end of AD flow
+  ansible.builtin.shell: |
+    set -euo pipefail
+    domain='{{ ad_domain }}'
+    dc='{{ team_domain_controller_ip }}'
+    password='{{ ad_domain_join.password }}'
+    u1='{{ ad_domain_join.username }}'
+    u2='{{ ad_domain_join.username }}@{{ ad_domain }}'
+    err="$(mktemp)"
+
+    for u in "$u1" "$u2"; do
+      if printf '%s\n' "$password" | adcli join --stdin-password --domain "$domain" --domain-controller "$dc" --login-user "$u" 2>"$err"; then
+        echo "joined_with=$u"
+        exit 0
+      fi
+    done
+
+    echo "adcli join failed for both principal formats: $u1 and $u2" >&2
+    cat "$err" >&2 || true
+    exit 1
+  args:
+    executable: /bin/bash
+  no_log: "{{ not (nix_ad_join_debug | default(false) | bool) }}"
+  register: nix_realm_join
+  when:
+    - ad_domain | lower not in (nix_realm_list.stdout | default('') | lower)
+    - (nix_ad_join_method | default('adcli')) == 'adcli'
+
+# Registers the host with realmd (realm list / realm permit) and aligns sssd with what adcli wrote.
+# Equivalent intent: sudo realm join -U 'greyteam' --verbose lakeplacid.local  (credentials from ad_domain_join).
+- name: Verbose realm join after adcli (realmd enrollment)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    realm_name='{{ ad_domain }}'
+    password='{{ ad_domain_join.password }}'
+    u1='{{ ad_domain_join.username }}'
+    u2='{{ ad_domain_join.username }}@{{ ad_domain }}'
+    err="$(mktemp)"
+    rl="$(realm list --name-only 2>/dev/null || true)"
+    if printf '%s\n' "$rl" | grep -Fx "$realm_name" >/dev/null 2>&1; then
+      echo "realm_already_listed=$realm_name"
+      exit 0
+    fi
+    for u in "$u1" "$u2"; do
+      if printf '%s\n' "$password" | realm join -U "$u" --verbose "$realm_name" 2>"$err"; then
+        echo "realm_join_verbose_ok=$u"
+        exit 0
+      fi
+      errtxt="$(cat "$err" || true)"
+      if printf '%s' "$errtxt" | grep -Eiq 'already enrolled|already joined|already a member|Already configured'; then
+        echo "realm_join_already=$u"
+        exit 0
+      fi
+    done
+    echo "verbose realm join failed for $u1 and $u2" >&2
+    cat "$err" >&2 || true
+    exit 1
+  args:
+    executable: /bin/bash
+  no_log: "{{ not (nix_ad_join_debug | default(false) | bool) }}"
+  register: nix_realm_verbose_join
+  changed_when: "'realm_join_verbose_ok=' in (nix_realm_verbose_join.stdout | default(''))"
+  failed_when: false
+  when:
+    - nix_ad_domain_join | default(false)
+    - (nix_ad_join_method | default('adcli')) == 'adcli'
+    - nix_ad_realm_join_verbose_after_adcli | default(true)
+
+- name: Warn when verbose realm join after adcli failed (continuing)
+  ansible.builtin.debug:
+    msg: >-
+      Optional realmd enrollment step failed after adcli join on {{ inventory_hostname }}.
+      Continuing with domain-join flow. Set -e nix_ad_join_debug=true to reveal stderr for this task.
+  when:
+    - nix_realm_verbose_join is defined
+    - nix_realm_verbose_join.rc is defined
+    - nix_realm_verbose_join.rc != 0
+
+- name: Restart SSSD after verbose realm join
+  ansible.builtin.service:
+    name: sssd
+    state: restarted
+  when:
+    - nix_realm_verbose_join is defined
+    - nix_realm_verbose_join is changed
+  failed_when: false
+
+- name: Join with realm (optional DNS-based path) at end of AD flow
+  ansible.builtin.shell: |
+    set -euo pipefail
+    realm_name='{{ ad_domain }}'
+    password='{{ ad_domain_join.password }}'
+    u1='{{ ad_domain_join.username }}'
+    u2='{{ ad_domain_join.username }}@{{ ad_domain }}'
+    err="$(mktemp)"
+
+    for u in "$u1" "$u2"; do
+      if printf '%s\n' "$password" | realm join -U "$u" --verbose "$realm_name" 2>"$err"; then
+        echo "joined_with=$u"
+        exit 0
+      fi
+    done
+
+    echo "realm join failed for both principal formats: $u1 and $u2" >&2
+    cat "$err" >&2 || true
+    exit 1
+  args:
+    executable: /bin/bash
+  no_log: "{{ not (nix_ad_join_debug | default(false) | bool) }}"
+  register: nix_realm_join
+  when:
+    - ad_domain | lower not in (nix_realm_list.stdout | default('') | lower)
+    - (nix_ad_join_method | default('adcli')) == 'realm'
+
+# --- Login allowlist (realm permit or SSSD simple_allow_users) ---
+# All listed users may SSH/login. Team local users are non-sudo; sudo is only Domain Admins + blue_team_admin_users (see sudoers above).
+# Combines admin + local team lists plus shared accounts (greyteam, scoring, ...).
+- name: Build full team user list for realm permit and SSSD allowlist
+  ansible.builtin.set_fact:
+    nix_realm_permit_users: >-
+      {{
+        (blue_team_admin_users | default([]))
+        + (blue_team_local_users | default([]))
+        + (blue_shared_users | default([]) | map(attribute='name') | list)
+      }}
+  when: nix_ad_domain_join | default(false)
+
+- name: Detect joined realm name for permit operations
+  ansible.builtin.command: realm list --name-only
+  register: nix_realm_list_names
+  changed_when: false
+  failed_when: false
+  when: nix_ad_domain_join | default(false)
+
+- name: Select effective realm name for permit
+  ansible.builtin.set_fact:
+    nix_effective_realm_name: >-
+      {{
+        (
+          nix_realm_list_names.stdout_lines
+          | default([])
+          | map('trim')
+          | reject('equalto', '')
+          | list
+          | first
+        )
+        | default(ad_domain, true)
+      }}
+  when: nix_ad_domain_join | default(false)
+
+- name: Determine whether realmd has a joined realm for permit
+  ansible.builtin.set_fact:
+    nix_realmd_realm_available: >-
+      {{
+        (nix_realm_list_names.stdout_lines | default([]) | map('trim') | reject('equalto', '') | list | length) > 0
+      }}
+  when: nix_ad_domain_join | default(false)
+
+# realm permit expects login principals (user@realm), not bare SAM names — see realmd "login format".
+- name: Permit team domain users to log into this host via realm
+  ansible.builtin.command:
+    argv: "{{ ['realm', 'permit', '--realm', nix_effective_realm_name] + (nix_realm_permit_users | map('regex_replace', '$', '@' ~ ad_domain) | list) }}"
+  register: nix_realm_permit
+  changed_when: nix_realm_permit.rc == 0
+  failed_when: nix_realm_permit.rc != 0
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_realm_permit_users | default([]) | length > 0
+    - nix_realmd_realm_available | default(false)
+
+- name: Skip realm permit when host is adcli/sssd joined without realmd realm registration
+  ansible.builtin.debug:
+    msg: >-
+      Skipping realm permit on {{ inventory_hostname }} because `realm list --name-only` is empty.
+      AD connectivity can still be valid via adcli/sssd (for example adcli info works).
+      To enforce explicit allowlists on these hosts, configure SSSD access controls.
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_realm_permit_users | default([]) | length > 0
+    - not (nix_realmd_realm_available | default(false))
+
+- name: Build SSSD allowlist identities (user@domain) for adcli/sssd fallback
+  ansible.builtin.set_fact:
+    nix_sssd_allow_users: >-
+      {{
+        nix_realm_permit_users
+        | default([])
+        | map('regex_replace', '$', '@' ~ ad_domain)
+        | list
+      }}
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_realm_permit_users | default([]) | length > 0
+    - not (nix_realmd_realm_available | default(false))
+
+- name: Enforce SSSD simple access provider when realm permit is unavailable
+  ansible.builtin.ini_file:
+    path: /etc/sssd/sssd.conf
+    section: "domain/{{ ad_domain }}"
+    option: access_provider
+    value: simple
+    mode: "0600"
+    no_extra_spaces: true
+  register: nix_sssd_access_provider
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_sssd_allow_users | default([]) | length > 0
+    - not (nix_realmd_realm_available | default(false))
+
+- name: Set SSSD allowed users when realm permit is unavailable
+  ansible.builtin.ini_file:
+    path: /etc/sssd/sssd.conf
+    section: "domain/{{ ad_domain }}"
+    option: simple_allow_users
+    value: "{{ nix_sssd_allow_users | join(',') }}"
+    mode: "0600"
+    no_extra_spaces: true
+  register: nix_sssd_allow_users_cfg
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_sssd_allow_users | default([]) | length > 0
+    - not (nix_realmd_realm_available | default(false))
+
+- name: Restart SSSD after domain join
+  ansible.builtin.service:
+    name: sssd
+    state: restarted
+  when:
+    - (
+        (nix_realm_join is defined and nix_realm_join is changed)
+        or
+        (nix_realm_verbose_join is defined and nix_realm_verbose_join is changed)
+        or
+        (nix_sssd_access_provider is defined and nix_sssd_access_provider is changed)
+        or
+        (nix_sssd_allow_users_cfg is defined and nix_sssd_allow_users_cfg is changed)
+      )
+  failed_when: false
+
+# Flat passwd-style lines via libnss-extrausers (not realm; not editing /etc/passwd).
+- name: Ensure nsswitch.conf includes extrausers after files for passwd
+  ansible.builtin.shell: |
+    set -euo pipefail
+    if grep -qE '^passwd:[[:space:]]+files[[:space:]]+extrausers' /etc/nsswitch.conf; then
+      echo "nsswitch_extrausers_already_present"
+      exit 0
+    fi
+    cp -a /etc/nsswitch.conf "/etc/nsswitch.conf.bak.ansible-extrausers-$(date +%s)"
+    sed -i 's/^\(passwd:[[:space:]]*files\)\([[:space:]]\)/\1 extrausers\2/' /etc/nsswitch.conf
+    echo "nsswitch_extrausers_updated"
+  args:
+    executable: /bin/bash
+  register: nix_nsswitch_extrausers_cmd
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_ad_nss_extrausers | default(true)
+    - nix_libnss_extrausers_installed | default(false)
+    - nix_realm_permit_users | default([]) | length > 0
+  changed_when: "'nsswitch_extrausers_updated' in (nix_nsswitch_extrausers_cmd.stdout | default(''))"
+
+- name: Ensure extrausers directory and passwd file exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: "{{ item.state }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /var/lib/extrausers, state: directory, mode: "0755" }
+    - { path: /var/lib/extrausers/passwd, state: touch, mode: "0644" }
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_ad_nss_extrausers | default(true)
+    - nix_libnss_extrausers_installed | default(false)
+    - nix_realm_permit_users | default([]) | length > 0
+
+- name: Ensure SSSD is running before resolving domain users for extrausers
+  ansible.builtin.service:
+    name: sssd
+    state: started
+  register: nix_sssd_start_extrausers
+  failed_when: false
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_ad_nss_extrausers | default(true)
+    - nix_libnss_extrausers_installed | default(false)
+    - nix_realm_permit_users | default([]) | length > 0
+
+- name: Diagnostic when SSSD did not start (extrausers path)
+  ansible.builtin.command:
+    argv:
+      - journalctl
+      - -u
+      - sssd
+      - -n
+      - "40"
+      - --no-pager
+  register: nix_sssd_journal_tail
+  changed_when: false
+  failed_when: false
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_ad_nss_extrausers | default(true)
+    - nix_libnss_extrausers_installed | default(false)
+    - nix_realm_permit_users | default([]) | length > 0
+    - nix_sssd_start_extrausers is defined
+    - not (nix_sssd_start_extrausers is succeeded)
+
+- name: Debug SSSD journal tail after failed start
+  ansible.builtin.debug:
+    var: nix_sssd_journal_tail.stdout_lines
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_ad_nss_extrausers | default(true)
+    - nix_libnss_extrausers_installed | default(false)
+    - nix_realm_permit_users | default([]) | length > 0
+    - nix_sssd_start_extrausers is defined
+    - not (nix_sssd_start_extrausers is succeeded)
+
+- name: Materialize domain user lines into extrausers passwd (NSS-visible flat file)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    added=0
+    for short in {{ nix_realm_permit_users | join(' ') }}; do
+      u="${short}@{{ ad_domain }}"
+      id "$u" >/dev/null 2>&1 || true
+      line="$(getent passwd "$u" || true)"
+      [ -n "$line" ] || continue
+      if grep -qxF "$line" /var/lib/extrausers/passwd 2>/dev/null; then
+        continue
+      fi
+      printf '%s\n' "$line" >> /var/lib/extrausers/passwd
+      added=1
+    done
+    if [ "$added" -eq 1 ]; then
+      echo "EXTRAUSERS_ADDED"
+    fi
+  args:
+    executable: /bin/bash
+  register: nix_extrausers_materialize
+  changed_when: "'EXTRAUSERS_ADDED' in (nix_extrausers_materialize.stdout | default(''))"
+  when:
+    - nix_ad_domain_join | default(false)
+    - nix_ad_nss_extrausers | default(true)
+    - nix_libnss_extrausers_installed | default(false)
+    - nix_realm_permit_users | default([]) | length > 0
+    - nix_sssd_start_extrausers is defined
+    - nix_sssd_start_extrausers is succeeded
+</file>
+
+<file path="roles/nix_base/tasks/main.yml">
+---
+# Base Linux role - Common Linux system setup
+# This role provides basic Linux configuration that other roles can depend on
+
+- name: Detect default IPv4 interface for pre-APT DNS checks
+  ansible.builtin.shell: |
+    set -euo pipefail
+    ip -4 route show default | head -1 | awk '{for (i=1;i<=NF;i++) if ($i=="dev") {print $(i+1); exit}}'
+  args:
+    executable: /bin/bash
+  register: nix_default_iface_pre_apt
+  changed_when: false
+  failed_when: false
+
+- name: Read /etc/resolv.conf nameservers (pre-APT)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    awk '/^nameserver / {print $2}' /etc/resolv.conf || true
+  args:
+    executable: /bin/bash
+  register: nix_resolv_conf_nameservers
+  changed_when: false
+  failed_when: false
+
+- name: Recover split DNS for apt when only 127.0.0.53 is present
+  ansible.builtin.command:
+    argv: "{{ ['resolvectl', 'dns', (nix_default_iface_pre_apt.stdout | trim)] + openstack_dns_servers }}"
+  when:
+    - openstack_dns_servers | default([]) | length > 0
+    - nix_default_iface_pre_apt.stdout | default('') | trim | length > 0
+    - (nix_resolv_conf_nameservers.stdout_lines | default([]) | length) == 1
+    - (nix_resolv_conf_nameservers.stdout_lines | first) == "127.0.0.53"
+  changed_when: true
+  failed_when: false
+
+# Ubuntu 20.04 OpenStack desktop: resolv.conf may not be stub-only yet mirrors still do not resolve.
+- name: Probe Ubuntu mirror DNS before common packages
+  ansible.builtin.command: getent hosts nova.clouds.archive.ubuntu.com
+  register: nix_main_probe_nova
+  changed_when: false
+  failed_when: false
+
+- name: Probe archive.ubuntu.com when cloud mirror host does not resolve
+  ansible.builtin.command: getent hosts archive.ubuntu.com
+  register: nix_main_probe_archive
+  changed_when: false
+  failed_when: false
+  when: nix_main_probe_nova.rc != 0
+
+- name: Recover per-link DNS for apt when mirrors do not resolve
+  ansible.builtin.command:
+    argv: "{{ ['resolvectl', 'dns', (nix_default_iface_pre_apt.stdout | trim)] + openstack_dns_servers }}"
+  when:
+    - openstack_dns_servers | default([]) | length > 0
+    - nix_default_iface_pre_apt.stdout | default('') | trim | length > 0
+    - nix_main_probe_nova.rc != 0
+    - nix_main_probe_archive is not skipped
+    - nix_main_probe_archive.rc != 0
+  changed_when: true
+  failed_when: false
+
+- name: Flush resolved caches after mirror DNS recovery
+  ansible.builtin.command: resolvectl flush-caches
+  changed_when: false
+  failed_when: false
+  when:
+    - openstack_dns_servers | default([]) | length > 0
+    - nix_main_probe_nova.rc != 0
+    - nix_main_probe_archive is not skipped
+    - nix_main_probe_archive.rc != 0
+
+# - name: Update apt cache (retry for transient mirror/DNS issues)
+#   ansible.builtin.apt:
+#     update_cache: true
+#     cache_valid_time: 3600
+#   register: nix_apt_update
+#   retries: 3
+#   delay: 5
+#   until: nix_apt_update is succeeded
+
+# - name: Fail with actionable apt/DNS guidance
+#   ansible.builtin.fail:
+#     msg: >-
+#       [APT preflight] Failed to update apt cache.
+#       If DNS was recently changed for AD split-DNS, set openstack_dns_servers (list) in group_vars
+#       so Ubuntu package mirrors remain resolvable. Example:
+#       openstack_dns_servers: ['10.x.x.x','10.y.y.y'].
+#       Also validate from host: getent hosts archive.ubuntu.com ; resolvectl status
+#   when: nix_apt_update is failed
+
+- name: Install common packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - wget
+      - gnupg
+      - software-properties-common
+    state: present
+
+# --- Active Directory (realmd/sssd): Ubuntu 20.04/22.04/24.04 desktop + server ---
+- name: Include AD domain join tasks
+  ansible.builtin.import_tasks: ad_domain_join.yml
+  when: nix_ad_domain_join | default(false)
+</file>
+
+<file path="roles/nix_grafana/defaults/main.yml">
+---
+grafana_http_port: 3000
+grafana_domain: localhost
+grafana_root_url: "http://localhost:3000/"
+grafana_admin_user: admin
+grafana_admin_password: changeme
+</file>
+
+<file path="roles/nix_grafana/handlers/main.yml">
+---
+- name: Restart grafana
+  ansible.builtin.systemd:
+    name: grafana-server
+    state: restarted
+</file>
+
+<file path="roles/nix_grafana/tasks/main.yml">
+---
+# Grafana — see group_vars/linux.yml → grafana; play may override grafana_* flat vars.
+
+- name: Install prerequisite packages for Grafana APT repo
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+    state: present
+    update_cache: true
+
+- name: Fetch Grafana APT signing key
+  ansible.builtin.get_url:
+    url: https://apt.grafana.com/gpg.key
+    dest: /usr/share/keyrings/grafana.asc
+    mode: "0644"
+
+- name: Add Grafana APT repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/grafana.asc] https://apt.grafana.com stable main"
+    state: present
+    filename: grafana
+
+- name: Install Grafana package
+  ansible.builtin.apt:
+    name: grafana
+    state: present
+    update_cache: true
+
+- name: Configure grafana.ini [server] settings
+  ansible.builtin.lineinfile:
+    path: /etc/grafana/grafana.ini
+    regexp: '^;?{{ item.key }}\s*='
+    line: "{{ item.key }} = {{ item.value }}"
+    backrefs: false
+  loop:
+    - { key: "http_port", value: "{{ grafana_http_port }}" }
+    - { key: "domain", value: "{{ grafana_domain }}" }
+    - { key: "root_url", value: "{{ grafana_root_url }}" }
+  notify: Restart grafana
+
+- name: Check for Grafana package env file
+  ansible.builtin.stat:
+    path: /etc/default/grafana-server
+  register: nix_grafana_default_env
+
+- name: Set Grafana admin user (package env file)
+  ansible.builtin.lineinfile:
+    path: /etc/default/grafana-server
+    regexp: '^#?GF_SECURITY_ADMIN_USER='
+    line: "GF_SECURITY_ADMIN_USER={{ grafana_admin_user }}"
+  notify: Restart grafana
+  when: nix_grafana_default_env.stat.exists
+
+- name: Set Grafana admin password (package env file)
+  ansible.builtin.lineinfile:
+    path: /etc/default/grafana-server
+    regexp: '^#?GF_SECURITY_ADMIN_PASSWORD='
+    line: "GF_SECURITY_ADMIN_PASSWORD={{ grafana_admin_password }}"
+  no_log: true
+  notify: Restart grafana
+  when: nix_grafana_default_env.stat.exists
+
+- name: Ensure Grafana service is enabled and running
+  ansible.builtin.systemd:
+    name: grafana-server
+    enabled: true
+    state: started
+</file>
+
+<file path="roles/nix_mail/files/dovecot.conf">
+dovecot_config_version = 2.4.0
+dovecot_storage_version = 2.4.0
+
+protocols = imap lmtp
+
+mail_home = /srv/mail/%user
+mail_driver = sdbox
+mail_path = ~/mail
+
+mail_uid = vmail
+mail_gid = vmail
+
+namespace inbox {
+	inbox = yes
+	mailbox Drafts {
+		auto = subscribe
+		special_use = \Drafts
+	}
+	mailbox Sent {
+		auto = subscribe
+		special_use = \Sent
+	}
+	mailbox Junk {
+		auto = subscribe
+		special_use = \Junk
+	}
+	mailbox Trash {
+		auto = subscribe
+		special_use = \Trash
+	}
+}
+
+# Auth uses PAM for now.
+passdb pam {
+}
+
+# Provide auth to postfix
+service auth {
+	# Creates a listener that Postfix binds to
+	unix_listener /var/spool/postfix/private/auth {
+		mode = 0660
+		user = postfix
+		group = postfix
+	}
+}
+
+disable_plaintext_auth = no
+auth_mechanism = plain login
+
+
+# Provide LMTP server for Postfix to save to
+service lmtp {
+	unix_listener /var/spool/postfix/private/dovecot-lmtp {
+		mode = 0600
+		user = postfix
+		group = postfix
+	}
+}
+
+ssl_server_cert_file = /etc/ssl-certs/self-signed.pem
+ssl_server_key_file = /etc/ssl-certs/privkey.pem
+</file>
+
+<file path="roles/nix_mail/files/postfix.conf.j2">
+# Domain and listening configuration
+myhostname = {{ pf_hostname }}
+mydomain = {{ pf_domain }}
+myorigin = $mydomain
+inet_interfaces = all
+inet_protocols = ipv4
+
+mydestination = localhost
+
+# Allowed subnets to mail
+mynetworks = 127.0.0.0/8, {{ pf_allowed_networks }}
+
+# Reject if mail is not addressed to pf_domain or if not from allowed networks
+# Allow only authenticated clients, and pf_allowed_networks
+smtpd_relay_restrictions = permit_mynetworks, reject_unauth_destination, permit_sasl_authenticated
+
+# Save to Dovecot
+virtual_transport = lmtp:unix:private/dovecot-lmtp
+
+# TLS configuration for outbound mail (client-side)
+smtp_tls_security_level = encrypt
+
+# TLS configuration for inbound mail (server-side)
+# Allow encryption but only force when authenticating
+smtpd_tls_security_level = may
+smtpd_tls_auth_only = yes
+smtpd_tls_cert_file = /etc/ssl-certs/self-signed.pem
+smtpd_tls_key_file = /etc/ssl-certs/privkey.pem
+
+# SASL configuration - Use Dovecot
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_type = dovecot
+smtpd_sasl_path = private/auth # Bind to listener created by Dovecot
+queue_directory = /var/spool/postfix
+
+# Log location
+maillog_file = /var/log/postfix.log
+</file>
+
+<file path="roles/nix_mail/README.md">
+# Mail Server Playbook
+### Author: Swapnil Acharjee
+
+This deploys both Dovecot and Postfix with SASL and TLS support preconfigured. The current implementation uses self signed SSL and PAM authentication for the mail server. This is subject to change and does need iteration to be fully usable.
+## Requirements
+### Variables
+* `C`: This is the country code required to generate the SSL cert.
+* `ST`: This is the state/province name for the SSL cert.
+* `L`: This is the Locale to be used for the SSL cert.
+* `O`: This is the Organization name to be used for the SSL cert.
+* `OU`: This is the Organizational Unit to be used for the SSL cert.
+* `CN`: This is a common name for the SSL cert.
+* `pf_hostname`: This is the hostname that Postfix will use.
+* `pf_domain`: This is the domain that Postfix will use.
+* `pf_allowed_networks`: This is a list of subnets that Postfix will allow unauthenticated.
+### Files
+#### `dovecot.conf`
+This is the main configuration file for Dovecot. This creates a basic inbox for whichever users authenticate. As previously said, this uses PAM authentication in order for users to access it. Dovecot is also configured to provide unix sockets for LMTP as well as authentication for Postfix to use.
+#### `postfix.conf.j2`
+This is the main configuration file for Postfix, saved at `/etc/postfix/main.cf`. This is a fairly basic file that sets up TLS to secure SMTP, while also configuring the domain for Postfix. All mail that is directed to a user is meant to be sent to Dovecot via LMTP for safekeeping. Postfix also piggybacks off Dovecot's authentication scheme to authenticate its users as well, maintaining parity between users
+</file>
+
+<file path="roles/nix_mail/tasks/mail-server.yml">
+---
+# Name: Swapnil Acharjee
+# Email: ska1751@rit.edu
+# Date: February 3, 2026
+# Assignment: CDT HW 2
+#
+# Playbook deploys Dovecot and Postfix on any systems labeled "mail"
+# This is expected to be installed on a Debian-based machine 
+#
+# There are two files needed:
+# - dovecot.conf
+# - postfix.conf.j2
+#
+# There are nine variables to be set:
+# - Domain Info for ssl cert generation
+# - Hostname for Postfix
+# - Domain that Postfix listens on
+# - Networks allowed to communicate to Postfix
+#
+- name: Install Mail System
+  hosts: mail
+  vars:
+    ## Domain Info (SSL)
+    C:  "US" # Country
+    ST: "NewYork" # State/Province
+    L:  "Rochester" # Locale/City
+    O:  "CSEC473" # Organization
+    OU: "Charlie" # Organizational Unit
+    CN: "example.com" # Common Name/Domain Name
+
+    ## Domain Info (Postfix)
+    pf_hostname: "smtp"
+    pf_domain: "example.com"
+    pf_allowed_networks: "10.0.100.0/24, 10.0.1.0/24"
+  become: yes
+  tasks:
+
+  # Adding key for external repo.
+  - name: Add Dovecot 2.4 Key
+    apt_key:
+      url: https://repo.dovecot.org/DOVECOT-REPO-GPG-2.4
+      state: present
+    
+  # Current config for Dovecot is only compatible version 2.4
+  # Adding Community hosted repository for 2.4
+  - name: Add Dovecot 2.4 Repository
+    apt_repository:
+      repo: deb https://repo.dovecot.org/ce-2.4.0/debian/bookworm bookworm main
+      state: present
+    
+  - name: Install Dovecot and Postfix
+    apt:
+      pkg:
+      - dovecot-lmtpd
+      - dovecot-imapd
+      - openssl
+      - postfix
+      update_cache: yes
+      state: latest
+    environment:
+      # Postfix uses an interactive config
+      # during install. This disables it.
+      DEBIAN_FRONTEND: noninteractive
+
+  # vmail Group and User needed for dovecot configuration.
+  - name: Create vmail Group 
+    group:
+      name: "vmail"
+      state: present
+
+  - name: Create vmail User
+    user:
+      name: "vmail"
+      group: "vmail"
+      create_home: false
+
+  - name: Ensure Cert Folder Exists
+    file:
+      path: /etc/ssl-certs
+      state: directory
+      owner: vmail
+      group: vmail
+      mode: 0640
+
+  - name: Create SSL Certs # Self-Signed SSL Cert for now.
+    shell: |
+      openssl req -newkey rsa:2048 -nodes \ 
+        -keyout /etc/ssl-certs/privkey.pem \
+        -x509 -days 365 \
+        -out /etc/ssl-certs/self-signed.pem \
+        -subj "/C={{C}}/ST={{ST}}/L={{L}}/O={{O}}/OU={{OU}}/CN={{CN}}"
+    
+  - name: Place premade Dovecot config file.
+    copy:
+      src: dovecot.conf
+      dest: /etc/dovecot/dovecot.conf
+      owner: vmail
+      group: vmail
+      mode: 0640 
+      backup: yes
+
+  - name: Place template Postfix config file.
+    template:
+      src: "postfix.conf.j2"
+      dest: "/etc/postfix/main.cf"
+      owner: postfix
+      group: postfix
+      mode: 0440
+      backup: yes
+    
+  - name: Enable and Start Services
+    service:
+      name: "{{ item }}"
+      state: started
+      enabled: true
+    loop:
+      - postfix
+      - dovecot
+</file>
+
+<file path="roles/nix_rsyslog/README.md">
+# rsyslog on Linux
+Note: this setup only supports one central log server.
+
+How to run:
+1. go to ``inventory.ini`` and configure central log server IP and client machine IPs
+2. Run ``ansible-playbook -i inventory.ini c_syslog.yml cli_syslog.yml`` in that order.
+-- c_syslog.yml configures the main server, which must be up before configuring the clients
+3. Logs will be found at ``/var/log/remote/`` under its respective machine name and respective service log file.
+
+Logs are automatically rotated every 1 hour if the log file exceeds 100KB.
+Rotated files will be located at the same directory where they are found (turned into a zip file).
+</file>
+
+<file path="roles/nix_rsyslog/tasks/c_syslog.yml">
+---
+# Name: Bryant Chang
+# Email: bc9028@rit.edu
+# Date: February 4, 2026
+# Assignment: CDT HW 2
+
+# This playbook deploys and configures rsyslog on the designated central logging server
+# To configure the main server location, go to inventory.ini
+- name: Central rsyslog server
+  hosts: syslog_central
+  become: true
+  tasks:
+    - name: Install rsyslog
+      package:
+        name: rsyslog
+        state: present
+
+    - name: Enable rsyslog service
+      service:
+        name: rsyslog
+        enabled: yes
+        state: started
+
+    - name: Create base directory for remote logs
+      file:
+        path: /var/log/remote # all the forwarded logs will be aggregated here
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Configure rsyslog server listeners # This rsyslog configuration ONLY supports TCP
+      copy:
+        dest: /etc/rsyslog.d/01-server.conf
+        mode: '0644'
+        content: |
+          module(load="imtcp")
+          input(type="imtcp" port="514")
+          template(name="RemoteLogs" type="string" string="/var/log/remote/%HOSTNAME%/%PROGRAMNAME%.log")
+          *.* ?RemoteLogs
+          & stop
+
+    - name: Filter out specific logs # This configuration only filters out ansible logs
+      copy:
+        dest: /etc/rsyslog.d/00-filter-noise.conf
+        content: |
+          if $programname contains "ansible" then stop
+    
+    - name: Automate log rotation # Logs are rotated and compressed every hour if main log file size exceeds 100KB
+      copy:
+        dest: /etc/logrotate.d/rsyslog-remote
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          /var/log/remote/*/*.log {
+            size 100k
+            hourly
+            missingok
+            rotate 2
+            compress
+            notifempty
+            create 0640 {{ ansible_env.USER }}
+            sharedscripts
+            postrotate
+              /usr/lib/rsyslog/rsyslog-rotate
+            endscript
+          }
+
+    - name: Restart rsyslog
+      service:
+        name: rsyslog
+        state: restarted
+</file>
+
+<file path="roles/nix_rsyslog/tasks/cli_syslog.yml">
+---
+# Name: Bryant Chang
+# Email: bc9028@rit.edu
+# Date: February 4, 2026
+# Assignment: CDT HW 2
+
+# This playbook deploys and configures rsyslog on designated client machines
+# Clients forward their logs to the central log server
+- name: Configure rsyslog clients
+  hosts: syslog_clients
+  become: true
+
+  tasks:
+    - name: Install rsyslog
+      package:
+        name: rsyslog
+        state: present
+
+    - name: Enable rsyslog service
+      service:
+        name: rsyslog
+        enabled: yes
+        state: started
+
+    - name: Configure log forwarding to central server # This forwards ALL logs for ALL services
+      copy:
+        dest: /etc/rsyslog.d/90-forward.conf
+        mode: '0644'
+        content: |
+          *.* @@{{ hostvars[groups['syslog_central'][0]].ansible_host | default(groups['syslog_central'][0]) }}:514
+      notify: Restart rsyslog
+
+  handlers:
+    - name: Restart rsyslog
+      service:
+        name: rsyslog
+        state: restarted
+</file>
+
+<file path="roles/nix_web_stack/files/config.php">
+<?php
+$host = "127.0.0.1";
+$db   = "miracle_ice";
+$user = "greyteam";
+$pass = "greyteam";
+$charset = "utf8mb4";
+
+$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+
+$options = [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+];
+
+try {
+    $pdo = new PDO($dsn, $user, $pass, $options);
+} catch (PDOException $e) {
+    http_response_code(500);
+    die("Database connection failed");
+}
+
+?>
+</file>
+
+<file path="roles/nix_web_stack/files/index.php">
+<?php
+require 'config.php';
+$teams = $pdo->query("SELECT * FROM teams")->fetchAll();
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>1980 Miracle on Ice</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>1980 Miracle on Ice: USA vs Soviet Union</h1>
+
+    <?php foreach ($teams as $team): ?>
+        <section>
+            <h2><?= htmlspecialchars($team['team_name']) ?></h2>
+
+            <table>
+                <tr>
+                    <th>No.</th>
+                    <th>Pos.</th>
+                    <th>Name</th>
+                    <th>Age</th>
+                    <th>Hometown</th>
+                    <th>College / Club</th>
+                </tr>
+
+                <?php
+                $stmt = $pdo->prepare("SELECT * FROM players WHERE team_id = ? ORDER BY player_number");
+                $stmt->execute([$team['id']]);
+
+                foreach ($stmt as $player):
+                ?>
+                <tr>
+                    <td><?= $player['player_number'] ?></td>
+                    <td><?= htmlspecialchars($player['position']) ?></td>
+                    <td><?= htmlspecialchars($player['player_name']) ?></td>
+                    <td><?= $player['age'] ?></td>
+                    <td><?= htmlspecialchars($player['hometown']) ?></td>
+                    <td><?= htmlspecialchars($player['club_college']) ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </table>
+        </section>
+    <?php endforeach; ?>
+</body>
+</html>
+</file>
+
+<file path="roles/nix_web_stack/files/mysql_setup.sql">
+CREATE DATABASE IF NOT EXISTS miracle_ice; 
+USE miracle_ice;
+
+CREATE TABLE teams (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    team_name VARCHAR(255) NOT NULL
+);
+
+INSERT INTO teams (team_name) VALUES ('United States'), ('Soviet Union');
+
+CREATE TABLE players (
+    id INT AUTO_INCREMENT PRIMARY KEY, 
+    team_id INT NOT NULL,
+    player_num INT NOT NULL,
+    position VARCHAR(20) NOT NULL, 
+    player_name VARCHAR(255) NOT NULL,
+    age INT NOT NULL,
+    hometown VARCHAR(255) NOT NULL,
+    club_college VARCHAR(255) NOT NULL,
+    FOREIGN KEY (team_id) REFERENCES teams(id)
+); 
+
+-- United States Players
+INSERT INTO players (team_id, player_num, position, player_name, age, hometown, club_college) VALUES
+(1,30,'G','Jim Craig',22,'North Easton, MA','Boston U.'),
+(1,3,'D','Ken Morrow',23,'Flint, MI','Bowling Green'),
+(1,5,'D','Mike Ramsey',19,'Minneapolis, MN','Minnesota'),
+(1,10,'C','Mark Johnson',22,'Madison, WI','Wisconsin'),
+(1,24,'LW','Rob McClanahan',22,'Saint Paul, MN','Minnesota'),
+(1,8,'RW','Dave Silk',21,'Scituate, MA','Boston U.'),
+(1,6,'D','Bill Baker (A)',22,'Grand Rapids, MN','Minnesota'),
+(1,9,'C','Neal Broten',20,'Roseau, MN','Minnesota'),
+(1,23,'RW','Dave Christian',20,'Warroad, MN','North Dakota'),
+(1,11,'RW','Steve Christoff',21,'Richfield, MN','Minnesota'),
+(1,21,'LW','Mike Eruzione (C)',25,'Winthrop, MA','Boston U.'),
+(1,28,'RW','John Harrington',22,'Virginia, MN','Minnesota-Duluth'),
+(1,1,'G','Steve Janaszak',22,'Saint Paul, MN','Minnesota'),
+(1,17,'D','Jack O''Callahan',22,'Charlestown, MA','Boston U.'),
+(1,16,'C','Mark Pavelich',21,'Eveleth, MN','Minnesota-Duluth'),
+(1,25,'LW','Buzz Schneider',25,'Grand Rapids, MN','Minnesota'),
+(1,19,'RW','Eric Strobel',21,'Rochester, MN','Minnesota'),
+(1,20,'D','Bob Suter',22,'Madison, WI','Wisconsin'),
+(1,27,'LW','Phil Verchota',22,'Duluth, MN','Minnesota'),
+(1,15,'C','Mark Wells',21,'St. Clair Shores, MI','Bowling Green');
+
+-- Soviet Union Players
+INSERT INTO players (team_id, player_num, position, player_name, age, hometown, club_college) VALUES
+(2,20,'G','Vladislav Tretiak',27,'Orudyevo','CSKA Moscow'),
+(2,2,'D','Viacheslav Fetisov',21,'Moscow','CSKA Moscow'),
+(2,7,'D','Alexei Kasatonov',20,'Leningrad','CSKA Moscow'),
+(2,16,'C','Vladimir Petrov',32,'Krasnogorsk','CSKA Moscow'),
+(2,17,'LW','Valeri Kharlamov',32,'Moscow','CSKA Moscow'),
+(2,13,'RW','Boris Mikhailov (C)',35,'Moscow','CSKA Moscow'),
+(2,19,'RW','Helmuts Balderis',27,'Riga','CSKA Moscow'),
+(2,14,'D','Zinetula Bilyaletdinov',24,'Moscow','Dynamo Moscow'),
+(2,23,'RW','Aleksandr Golikov',27,'Penza','Dynamo Moscow'),
+(2,25,'C','Vladimir Golikov',25,'Penza','Dynamo Moscow'),
+(2,9,'LW','Vladimir Krutov',19,'Moscow','CSKA Moscow'),
+(2,11,'RW','Yuri Lebedev',28,'Moscow','Krylya Sovetov Moscow'),
+(2,24,'RW','Sergei Makarov',21,'Chelyabinsk','CSKA Moscow'),
+(2,10,'C/RW','Aleksandr Maltsev',30,'Kirovo-Chepetsk','Dynamo Moscow'),
+(2,1,'G','Vladimir Myshkin',24,'Kirovo-Chepetsk','Dynamo Moscow'),
+(2,5,'D','Vasili Pervukhin',24,'Penza','Dynamo Moscow'),
+(2,26,'LW','Aleksandr Skvortsov',25,'Gorky','Torpedo Gorky'),
+(2,12,'D','Sergei Starikov',21,'Chelyabinsk','CSKA Moscow'),
+(2,6,'D','Valeri Vasiliev (A)',30,'Gorky','Dynamo Moscow'),
+(2,22,'C','Viktor Zhluktov',26,'Inta','CSKA Moscow');
+</file>
+
+<file path="roles/nix_web_stack/files/nginx.conf">
+server {
+    listen 80; # listen on port 80
+
+    root /var/www/html/miracle-on-ice;
+    index index.php index.html; # look for index.php first, then index.html
+
+    location / {
+        try_files $uri $uri/ /index.php;
+    }
+
+    location ~ \.php$ {
+        include fastcgi_params; # fastcgi is used to communicate between nginx and php
+        fastcgi_pass unix:/run/php/php7.4-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name; # set index.php as the script to be executed
+    }
+}
+</file>
+
+<file path="roles/nix_web_stack/files/score.php">
+<?php
+require 'config.php';
+
+$result = $pdo->query("SELECT COUNT(*) as total FROM players")->fetch();
+
+if ($result['total'] >= 40) {
+    echo "OK";
+} else {
+    http_response_code(500);
+    echo "FAIL";
+}
+?>
+</file>
+
+<file path="roles/nix_web_stack/files/style.css">
+body {
+    font-family: Arial, sans-serif;
+    margin: 40px;
+    background: #f5f5f5;
+}
+
+h1 {
+    text-align: center;
+}
+
+section {
+    margin-bottom: 50px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+th, td {
+    border: 1px solid #ccc;
+    padding: 8px;
+    text-align: left;
+}
+
+th {
+    background: #ddd;
+}
+</file>
+
+<file path="roles/nix_web_stack/inventory.ini">
+[webservers]
+# Below are the web server hosts
+x.x.x.x # removed IP for GitHub push
+</file>
+
+<file path="roles/nix_web_stack/README.md">
+## nginx container playbook 
+### Developer: Caroline Richards
+This script deploys nginx, MySQL, and php-fpm Docker container on a client and configures them on a network to communicate. Required files for nginx config, index.php, and database initialization are included in the directory but should but customized or replaced by themed, full web page implementations prior to competition deployment. Required files should be located in the same directory where the playbook is run.
+</file>
+
+<file path="roles/nix_web_stack/tasks/main.yml">
+---
+# Author: Caroline Richards
+# Email: cpr9499@rit.edu
+
+# This playbook deploys a web stack on a Linux host with Nginx, MySQL, and PHP
+- name: Install Nginx, MySQL, and PHP packages
+  apt: 
+    name: 
+      - nginx
+      - mysql-server
+      - php-fpm
+      - php-mysql
+    state: present
+    update_cache: yes
+
+# PHP
+- name: Start and enable PHP-FPM
+  service:
+    name: php7.4-fpm
+    state: started
+    enabled: yes
+
+# Nginx Setup
+- name: Start and enable Nginx
+  service: 
+    name: nginx
+    state: started
+    enabled: yes
+
+- name: Ensure web root directory exists
+  file:
+      path: "{{ web_stack.web_root }}"
+      state: directory
+      owner: www-data
+      group: www-data
+      mode: '0755'
+
+- name: Copy website files
+  copy: 
+    src: "{{ item }}"
+    dest: "{{ web_stack.web_root }}/{{ item }}"
+    owner: www-data
+    group: www-data
+    mode: '0644'
+  loop:
+    - index.php
+    - config.php
+    - style.css
+    - score.php
+
+- name: Copy Nginx configuration
+  copy: 
+    src: nginx.conf
+    dest: /etc/nginx/sites-available/miracle_ice
+    mode: '0644'
+
+- name: Enable nginx site
+  file: 
+    src: /etc/nginx/sites-available/miracle_ice
+    dest: /etc/nginx/sites-enabled/miracle_ice
+    state: link
+
+- name: Remove default nginx site
+  file: 
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Restart Nginx 
+  service: 
+    name: nginx
+    state: restarted
+
+# MySQL Setup
+- name: Install python MySQL dependency
+  apt:
+    name: python3-pymysql
+    state: present
+
+- name: Start and enable MySQL
+  service:
+    name: mysql
+    state: started
+    enabled: yes
+
+- name: Copy SQL setup script
+  copy:
+    src: mysql_setup.sql
+    dest: /tmp/mysql_setup.sql
+    mode: '0644'
+
+- name: Create database
+  community.mysql.mysql_db:
+    name: miracle_ice
+    state: present
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+
+- name: Import SQL setup script
+  community.mysql.mysql_db:
+    name: miracle_ice
+    state: import
+    target: /tmp/mysql_setup.sql
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+
+- name: Create Database user
+  community.mysql.mysql_user:
+    name: "{{ web_stack.mysql.app_user }}"
+    password: "{{ web_stack.mysql.app_password }}"
+    priv: "miracle_ice.*:ALL"
+    host: localhost
+    state: present
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+</file>
+
+<file path="roles/win_base/tasks/main.yml">
+---
+# Base Windows role - Common Windows system setup
+# This role provides basic Windows configuration that other roles can depend on
+
+- name: Ensure WinRM service is enabled and running
+  ansible.windows.win_service:
+    name: WinRM
+    start_mode: auto
+    state: started
+
+- name: Enable File and Printer Sharing firewall rules
+  ansible.windows.win_powershell:
+    script: |
+      Set-NetFirewallRule -DisplayGroup "File and Printer Sharing" -Enabled True
+
+- name: Enable Powershell Script Execution
+  win_shell: Set-ExecutionPolicy -ExecutionPolicy Unrestricted -Force
+
+# Administrators are elevated silently instead of getting a UAC prompt for credentials
+- name: Disable UAC for Administrators Only
+  win_regedit:
+    path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+    name: ConsentPromptBehaviorAdmin
+    data: 0  # elevates without prompting for Administrators
+    type: dword
+
+# Checks the local Windows group Remote Management Users exists
+- name: Ensure Remote Management Group Exists
+  ansible.windows.win_group:
+    name: "Remote Management Users"
+    state: present
+
+# Makes Remote Desktop allowed
+- name: Set fDenyTSConnections
+  ansible.windows.win_regedit:
+    path: HKLM:\System\CurrentControlSet\Control\Terminal Server
+    name: fDenyTSConnections
+    data: 0
+    type: dword
+    state: present
+
+# Sets another Terminal Services registry value, to keep Remote Desktop status/settings in sync
+- name: Set updateRDStatus
+  ansible.windows.win_regedit:
+    path: HKLM:\System\CurrentControlSet\Control\Terminal Server
+    name: updateRDStatus
+    data: 1
+    type: dword
+    state: present
+
+- name: Create RDP (TCP) Exception In Firewall (Windows > 7/2012)
+  community.windows.win_firewall_rule:
+    name: RDP
+    protocol: tcp
+    localport: 3389
+    action: allow
+    direction: in
+    state: present
+    profiles:
+    - domain
+    - private
+    - public
+    localip: any
+    remoteip: any
+    enabled: yes
+  when: ansible_distribution_major_version|int > 6
+
+- name: Create RDP (UDP) Exception in Firewall (Windows > 7/2012)
+  community.windows.win_firewall_rule:
+    name: RDP
+    protocol: udp
+    localport: 3389
+    action: allow
+    direction: in
+    state: present
+    profiles:
+    - domain
+    - private
+    - public
+    localip: any
+    remoteip: any
+    enabled: yes
+  when: ansible_distribution_major_version|int > 6
+
+# For older Windows versions, instead of creating explicit firewall rules, enables the built-in firewall rule group for Remote Desktop using netsh
+- name: Create RDP Exception in Firewall (<= Windows 7/2012)
+  ansible.windows.win_command: cmd.exe
+  args:
+    stdin: 'netsh advfirewall firewall set rule group="remote desktop" new enable=Yes'
+  when: ansible_distribution_major_version|int <= 6
+</file>
+
+<file path="roles/win_dc_dns/ansible.cfg">
+[defaults]
+inventory=inventory.ini
+</file>
+
+<file path="roles/win_dc_dns/deploy_dc.yml">
+---
+# Standalone AD/DNS deployment wrapper for win_dc_dns role.
+# Supports selecting the deployment scope with:
+#   -e windows_dc_deployment_team=blue_team_1
+#   -e windows_dc_deployment_team=blue_team_2
+#   -e windows_dc_deployment_team=all
+
+- name: Deploy AD/DNS for competition domain
+  hosts: windows_dc
+  vars:
+    domain_name: "{{ windows_dc.domain_name }}"
+    netbios_name: "{{ windows_dc.netbios_name }}"
+    safe_mode_password: "{{ windows_dc.safe_mode_password }}"
+    dc_hostname: "{{ default(inventory_hostname) }}"
+    ou_name: "{{ windows_dc.ou_name }}"
+    group_name: "{{ windows_dc.group_name }}"
+    deployment_team: >-
+      {{
+        dc_team
+        if (windows_dc_deployment_team | default(windows_dc.deployment_team | default('host_team'))) == 'host_team'
+        else (windows_dc_deployment_team | default(windows_dc.deployment_team))
+      }}
+  roles:
+    - win_base
+    - win_dc_dns
+</file>
+
+<file path="roles/win_dc_dns/README.md">
+# AD Domain Controller / DNS — Ansible Role
+This role deploys Windows **Active Directory Domain Services** (AD DS) + **DNS** for the competition domain and supports Team 1 / Team 2 / all-team deployments from one unified workflow.
+
+The role now:
+1. Installs AD DS + DNS features
+2. Creates or ensures the `lakeplacid.local` domain
+3. Creates the competition OU and security group
+4. Creates all required domain users (shared + team-specific)
+5. Adds admin-designated domain users (`is_admin: true` in `windows_domain_team_users`) to **Domain Admins**
+6. Creates DNS A records for team hosts based on selected deployment scope
+
+### Control Machine
+- Ansible 2.11+
+- WinRM configured on target Windows host
+- Python installed (on control machine)
+- Required Ansible Collections:
+  ```sh
+  ansible-galaxy collection install ansible.windows
+  ansible-galaxy collection install microsoft.ad
+  ```
+
+## Deployment Commands
+From `ansible/`:
+
+You can also run through the main playbook:
+```sh
+ansible-playbook -i inventory.yml site.yml -e windows_dc_deployment_team=blue_team_1
+```
+
+### Windows DC DNS Deployment
+Deploy both teams:
+```sh
+ansible-playbook -i inventory.yml roles/win_dc_dns/deploy_dc.yml -e windows_dc_deployment_team=all
+```
+
+Deploy Team 1 only:
+```sh
+ansible-playbook -i inventory.yml roles/win_dc_dns/deploy_dc.yml -e windows_dc_deployment_team=blue_team_1
+```
+
+Deploy Team 2 only:
+```sh
+ansible-playbook -i inventory.yml roles/win_dc_dns/deploy_dc.yml -e windows_dc_deployment_team=blue_team_2
+```
+</file>
+
+<file path="roles/win_dc_dns/tasks/main.yml">
+---
+# Windows Domain Controller + DNS Role
+# Installs AD DS/DNS, creates domain, provisions team users, and creates DNS A records.
+
+- name: Set DC hostname
+  ansible.windows.win_hostname:
+    name: "{{ dc_hostname }}"
+  register: rename_result
+
+- name: Reboot if hostname change requires it
+  ansible.windows.win_reboot:
+    msg: "Rebooting after hostname changes"
+  when: rename_result.reboot_required
+
+- name: Install Active Directory Domain Services (ADDS)
+  ansible.windows.win_feature:
+    name: AD-Domain-Services
+    state: present
+    include_management_tools: true
+  register: ad_feature_result
+
+- name: Install DNS
+  ansible.windows.win_feature:
+    name: DNS
+    state: present
+    include_management_tools: true
+  register: dns_feature_result
+
+- name: Reboot after ADDS/DNS feature install if needed
+  ansible.windows.win_reboot:
+    msg: "Rebooting after ADDS/DNS feature install"
+  when: (ad_feature_result.reboot_required | default(false)) or (dns_feature_result.reboot_required | default(false))
+
+- name: Create AD domain and reboot
+  microsoft.ad.domain:
+    dns_domain_name: "{{ domain_name }}"
+    domain_netbios_name: "{{ netbios_name }}"
+    safe_mode_password: "{{ safe_mode_password }}"
+    create_dns_delegation: false
+    install_dns: true
+    reboot: true
+  register: domain_create
+
+- name: Reboot after domain creation / DC promotion if needed
+  ansible.windows.win_reboot:
+    msg: "Rebooting after domain creation / DC promotion"
+  when: domain_create.reboot_required | default(true)
+
+- name: Set deployment team for this DC host
+  ansible.builtin.set_fact:
+    selected_team: "{{ deployment_team | default(dc_team) }}"
+
+- name: Build domain DN path
+  ansible.builtin.set_fact:
+    domain_dn: "DC={{ (domain_name | trim).split('.') | join(',DC=') }}"
+
+- name: Create OU
+  microsoft.ad.ou:
+    name: "{{ ou_name }}"
+    path: "{{ domain_dn }}"
+    state: present
+
+- name: Create group in OU
+  microsoft.ad.group:
+    name: "{{ group_name }}"
+    path: "OU={{ ou_name }},{{ domain_dn }}"
+    scope: global
+    state: present
+
+- name: Build effective domain user list
+  ansible.builtin.set_fact:
+    effective_domain_users: >-
+      {{
+        windows_domain_common_users +
+        (
+          windows_domain_team_users
+          if selected_team == 'all' or selected_team == dc_team
+          else []
+        )
+      }}
+
+- name: Create domain users in OU
+  microsoft.ad.user:
+    name: "{{ item.sam }}"
+    firstname: "{{ item.given }}"
+    lastname: "{{ item.surname }}"
+    password: "{{ item.password }}"
+    path: "OU={{ ou_name }},{{ domain_dn }}"
+    enabled: true
+    state: present
+  loop: "{{ effective_domain_users }}"
+
+- name: Add privileged domain users to Domain Admins
+  ansible.windows.win_powershell:
+    script: |
+      Import-Module ActiveDirectory
+      Add-ADGroupMember -Identity "Domain Admins" -Members "{{ item.sam }}" -ErrorAction SilentlyContinue
+  loop: "{{ effective_domain_users | selectattr('is_admin', 'equalto', true) | list }}"
+
+- name: Build effective DNS A record list
+  ansible.builtin.set_fact:
+    effective_dns_records: >-
+      {{
+        (
+          windows_dc.dns_records.blue_team_1 + windows_dc.dns_records.blue_team_2
+        )
+        if selected_team == 'all'
+        else windows_dc.dns_records[selected_team]
+      }}
+
+- name: Create DNS A records for deployment hosts
+  ansible.windows.win_powershell:
+    script: |
+      $zone = "{{ domain_name }}"
+      $recordName = "{{ item.name }}"
+      $recordIP = "{{ item.ip }}"
+      $existing = Get-DnsServerResourceRecord -ZoneName $zone -Name $recordName -RRType "A" -ErrorAction SilentlyContinue
+      if (-not $existing) {
+        Add-DnsServerResourceRecordA -Name $recordName -ZoneName $zone -IPv4Address $recordIP -CreatePtr:$false
+      } else {
+        $currentIPs = @($existing.RecordData | ForEach-Object { $_.IPv4Address.ToString() })
+        if ($currentIPs -notcontains $recordIP) {
+          Remove-DnsServerResourceRecord -ZoneName $zone -Name $recordName -RRType "A" -Force -ErrorAction SilentlyContinue
+          Add-DnsServerResourceRecordA -Name $recordName -ZoneName $zone -IPv4Address $recordIP -CreatePtr:$false
+        }
+      }
+  loop: "{{ effective_dns_records }}"
+</file>
+
+<file path="roles/win_domain_join/tasks/main.yml">
+---
+# Join Windows Server member to AD (2016 / 2019 / 2022). Run after team DC exists.
+# Requires: team_domain_controller_ip, ad_domain, ad_domain_join, windows_dc.netbios_name, microsoft.ad collection
+# After joining, team admin users are added to local Administrators and all team users
+# to Remote Desktop Users so they can access this Windows member the same way they can Linux.
+
+- name: Join Windows Server to Active Directory
+  when: windows_ad_domain_join | default(false)
+  block:
+    # Prefer default-route interface (works on Server Core and full GUI; avoids adapter-name edge cases).
+    - name: Point DNS at team domain controller
+      ansible.windows.win_powershell:
+        script: |
+          $dcIP = "{{ team_domain_controller_ip }}"
+          $routes = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue |
+            Sort-Object -Property RouteMetric
+          if ($routes) {
+            $routes | ForEach-Object {
+              Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ServerAddresses @($dcIP, '1.1.1.1')
+            }
+          } else {
+            Get-NetAdapter | Where-Object { $_.Status -eq 'Up' } | ForEach-Object {
+              Set-DnsClientServerAddress -InterfaceIndex $_.InterfaceIndex -ServerAddresses @($dcIP, '1.1.1.1')
+            }
+          }
+
+    # Use the DC DNS hostname (not raw IP) for domain_server — passing only an IP can produce
+    # "This operation is only allowed for the Primary Domain Controller" / odd domain\IP errors.
+    # Client DNS is already pointed at team_domain_controller_ip; _ldap._tcp / A for the DC should resolve.
+    - name: Join Active Directory domain
+      microsoft.ad.membership:
+        dns_domain_name: "{{ ad_domain }}"
+        domain_admin_user: "{{ windows_dc.netbios_name }}\\{{ ad_domain_join.username }}"
+        domain_admin_password: "{{ ad_domain_join.password }}"
+        domain_server: "{{ team_domain_controller }}.{{ ad_domain }}"
+        state: domain
+        reboot: true
+
+- name: Add team admin domain accounts to local Administrators on Windows members
+  when: windows_ad_domain_join | default(false)
+  ansible.windows.win_group_membership:
+    name: Administrators
+    members:
+      - "{{ windows_dc.netbios_name }}\\{{ item.sam }}"
+    state: present
+  loop: "{{ windows_domain_team_users | default([]) | selectattr('is_admin', 'equalto', true) | list }}"
+  loop_control:
+    label: "{{ item.sam }}"
+  failed_when: false
+
+- name: Add all team domain accounts to Remote Desktop Users on Windows members
+  when: windows_ad_domain_join | default(false)
+  ansible.windows.win_group_membership:
+    name: Remote Desktop Users
+    members:
+      - "{{ windows_dc.netbios_name }}\\{{ item.sam }}"
+    state: present
+  loop: "{{ windows_domain_team_users | default([]) }}"
+  loop_control:
+    label: "{{ item.sam }}"
+  failed_when: false
+</file>
+
+<file path="roles/win_ldap_kerberos/tasks/main.yml">
+---
+# Windows LDAP + Kerberos Role
+# Sets up AD DS with LDAP and Kerberos services
+# Note: AD DS includes both LDAP and Kerberos automatically
+
+- name: Set DC hostname
+  ansible.windows.win_hostname:
+    name: "{{ dc_hostname }}"
+  register: rename_result
+
+- name: Reboot if hostname change requires it
+  ansible.windows.win_reboot:
+    msg: "Rebooting after hostname changes"
+  when: rename_result.reboot_required
+
+- name: Install Active Directory Domain Services (ADDS)
+  ansible.windows.win_feature:
+    name: AD-Domain-Services
+    state: present
+    include_management_tools: true
+  register: ad_feature_result
+
+- name: Reboot after ADDS feature install if needed
+  ansible.windows.win_reboot:
+    msg: "Rebooting after ADDS feature install"
+  when: ad_feature_result.reboot_required | default(false)
+
+- name: Create AD domain and reboot
+  microsoft.ad.domain:
+    dns_domain_name: "{{ domain_name }}"
+    domain_netbios_name: "{{ netbios_name }}"
+    safe_mode_password: "{{ safe_mode_password }}"
+    create_dns_delegation: false
+    install_dns: false
+    reboot: true
+  register: domain_create
+  when: not join_domain | default(false)
+
+- name: Reboot after domain creation / DC promotion if needed
+  ansible.windows.win_reboot:
+    msg: "Rebooting after domain creation / DC promotion"
+  when:
+    - not join_domain | default(false)
+    - domain_create.reboot_required | default(true)
+
+- name: Verify LDAP service is running
+  ansible.windows.win_service:
+    name: NTDS
+    state: started
+
+- name: Verify Kerberos Key Distribution Center is running
+  ansible.windows.win_service:
+    name: KDC
+    state: started
+</file>
+
+<file path="roles/win_net_tools/net_tools_no_firewall.yml">
+# Oliver Gomes
+# odg1896@rit.edu
+# 2/4/2026
+---
+- name: Grey Team Windows Environment Setup
+  hosts: windows
+  # Speed up execution if hardware details aren't needed
+  gather_facts: false  
+  tasks:
+
+    # Allowing all network traffic through without a hassle
+    - name: Disable Windows Firewall
+      community.windows.win_firewall:
+        state: disabled
+        profiles:
+          - Domain
+          - Private
+          - Public
+      
+    # OpenSSH allows for Linux-like remote management and secure file transfers (SFTP)
+    - name: Install OpenSSH Server
+      microsoft.ad.win_optional_feature:
+        name: OpenSSH.Server~~~~0.0.1.0
+        state: present
+    
+    # Ensures the SSH service starts immediately and survives system reboots
+    - name: Start and Automate SSH Service
+      win_service:
+        name: sshd
+        start_mode: auto
+        state: started
+
+    # Chocolatey is the package manager used to automate the next two software installs
+    - name: Ensure Chocolatey is installed
+      win_chocolatey:
+        name: chocolatey
+        state: present
+
+    # Sysinternals is essential for deep-system monitoring and troubleshooting
+    - name: Install Sysinternals Suite
+      win_chocolatey:
+        name: sysinternals
+        state: latest
+        
+    # Wireshark is installed for packet capture and network traffic analysis
+    - name: Install Wireshark
+      win_chocolatey:
+        name: wireshark
+        state: latest
+</file>
+
+<file path="roles/win_net_tools/README.md">
+# README: Grey Team Windows Lab Staging
+**Author: Oliver Gomes (odg1896@rit.edu)**
+## Overview
+This playbook automates the grey team 'default' deployment of a **Windows Target Machine** for use in an isolated "Grey Team" lab environment. It transforms a base Windows installation into a "glass box" environment, allowing security analysts to observe system behavior and network traffic without the interference of default OS protections for better scoring utility.
+
+## Service
+OpenSSH
+
+## Features
+
+- Chocolately
+- SysInternals
+- Wireshark
+
+#### Would be cool to add later on
+- Sysmon
+
+## Why
+
+* **Vulnerability Research:** Test how specific services react to custom exploits without firewall filtering.
+* **Real-time Traffic Analysis:** Use Wireshark in conjunction with OpenSSH to remotely trigger and capture network packets to study proprietary protocols.
+* **Forensic Monitoring:** Utilize the Sysinternals suite (such as `Procmon` and `Autoruns`) to track file system and registry changes during simulated attacks.
+
+
+## Prerequisites
+* **WinRM Connectivity:** The target machine must be reachable via port 5985 or 5986.
+* **Inventory Configuration:** Ensure `win-inventory.ini` contains the correct IP address and `Administrator` credentials.
+* **Ansible Collections:** Ensure `community.windows` and `microsoft.ad` collections are installed on your control node.
+
+
+### 1. Required Ansible Collections
+The playbook relies on specific modules that are not included in the Ansible core. You must install the **Community Windows** and **Microsoft AD** collections on your control node before running the playbook:
+
+```bash
+# Install the Community Windows collection (for firewall and chocolatey)
+ansible-galaxy collection install community.windows
+
+# Install the Microsoft AD collection (for OpenSSH feature management)
+ansible-galaxy collection install microsoft.ad
+```
+
+## Deployment
+To execute the playbook, run the following command from your Ansible control node:
+
+```bash
+ansible-playbook -i win-inventory.ini net_tools_no_firewall.yml
+</file>
+
+<file path="roles/win_net_tools/win-inventory.ini">
+[windows]
+# Replace with the IP of the target Windows Server
+x.x.x.x
+
+[windows:vars]
+# Replace with admin level user and password creds on the server
+ansible_user=Administrator
+ansible_password=Admin123!
+ansible_connection=winrm
+ansible_winrm_server_cert_validation=ignore
+ansible_winrm_transport=basic
+</file>
+
+<file path="roles/win_old_ldap/ansible.cfg">
+[defaults]
+inventory=inventory.ini
+</file>
+
+<file path="roles/win_old_ldap/base.ldif">
+dn: dc=example,dc=com
+objectClass: top
+objectClass: domain
+dc: example
+
+dn: ou=People,dc=example,dc=com
+objectClass: organizationalUnit
+ou: People
+
+dn: ou=Groups,dc=example,dc=com
+objectClass: organizationalUnit
+ou: Groups
+</file>
+
+<file path="roles/win_old_ldap/Features.yml">
+# Name: Winter Sager
+# Email: wrs9226@g.rit.edu
+# Date: 02.04.26
+
+#  The script has used LDAP features to implement 3 features; Creating Admin Groups, Adding Users to Groups and Placing Files
+
+
+---
+
+- name: LDAP group, user, and file setup
+  hosts: ldap
+  become: yes
+
+  vars_files:
+    - vars/ldap_users.yml
+
+  tasks:
+
+    # Create LDAP group
+    - name: Create admin group LDIF
+      copy:
+        dest: /tmp/create_group.ldif
+        content: |
+          dn: cn={{ admin_group }},ou=Groups,{{ ldap_suffix }}
+          objectClass: top
+          objectClass: posixGroup
+          cn: {{ admin_group }}
+          gidNumber: {{ admin_gid }}
+
+    - name: Apply admin group LDIF
+      command: >
+        ldapadd -x -D "{{ ldap_rootdn }}" -w "{{ ldap_rootpw }}" -H ldapi:/// -f /tmp/create_group.ldif
+      ignore_errors: true
+      failed_when: false   # Prevents "Already exists" from failing the playbook
+
+    # Create LDAP user
+    - name: Create user LDIF
+      copy:
+        dest: /tmp/create_user.ldif
+        content: |
+          dn: uid={{ username }},ou=People,{{ ldap_suffix }}
+          objectClass: inetOrgPerson
+          objectClass: posixAccount
+          objectClass: shadowAccount
+          cn: {{ user_cn }}
+          sn: {{ user_sn }}
+          uid: {{ username }}
+          uidNumber: {{ user_uid }}
+          gidNumber: {{ admin_gid }}
+          homeDirectory: /home/{{ username }}
+          loginShell: /bin/bash
+          userPassword: {{ user_password }}
+
+    - name: Apply user LDIF
+      command: >
+        ldapadd -x -D "{{ ldap_rootdn }}" -w "{{ ldap_rootpw }}" -H ldapi:/// -f /tmp/create_user.ldif
+      ignore_errors: true
+      failed_when: false
+
+    # Add user to LDAP group
+    - name: Create group membership LDIF
+      copy:
+        dest: /tmp/add_user_to_group.ldif
+        content: |
+          dn: cn={{ admin_group }},ou=Groups,{{ ldap_suffix }}
+          changetype: modify
+          add: memberUid
+          memberUid: {{ username }}
+
+    - name: Apply group membership LDIF
+      command: >
+        ldapmodify -x -D "{{ ldap_rootdn }}" -w "{{ ldap_rootpw }}" -H ldapi:/// -f /tmp/add_user_to_group.ldif
+      ignore_errors: true
+      failed_when: false   # Prevents "Value exists" from failing the playbook
+
+    # Ensure local UNIX group exists
+    # Required so Linux can chgrp the file
+
+    - name: Ensure local UNIX group exists
+      group:
+        name: "{{ admin_group }}"
+        gid: "{{ admin_gid }}"
+        state: present
+
+    # Create file and assign group
+
+    - name: Create file for admin group
+      file:
+        path: "{{ file_path }}"
+        state: touch
+        owner: root
+        group: "{{ admin_group }}"
+        mode: "0660"
+</file>
+
+<file path="roles/win_old_ldap/inventory.ini">
+# Replace example with the domains that need to be used
+[ldap]
+ldap01 ansible_host=100.x.x.x ansible_user=username ansible_become=true
+
+[ldap:vars]
+ldap_base_dn="dc=example,dc=com"
+ldap_admin_dn="cn=admin,dc=example,dc=com"
+ldap_admin_password="Password"
+ldap_org="Example Corp"
+ldap_domain="example.com"
+</file>
+
+<file path="roles/win_old_ldap/LDAP-Setup.yml">
+# Name: Winter Sager
+# Email: wrs9226@g.rit.edu
+# Date: 02.04.26
+
+#  The purpose of this Ansible script is to install and configure OpenLDAP.
+
+---
+-  name: Install/Configure OpenLDAP
+   hosts: openldap
+   become: yes
+   
+   vars_files:
+     - vars/ldap.yml
+
+   tasks:
+
+   # This next step will install OpenLDAP with the OpenLDAP server and LDAP tools. The update cache acts as sudo apt update.
+   - name: Install OpenLDAP
+     apt: 
+       name:
+         - slapd
+         - ldap-utils
+       update_cache: yes
+
+           # This task sets the password for config
+   - name: Create LDIF to set cn=config admin password
+     copy:
+       dest: /tmp/set_config_pw.ldif
+       content: |
+         dn: olcDatabase={0}config,cn=config
+         changetype: modify
+         replace: olcRootPW
+         olcRootPW: {{ ldap_admin_password }}
+    
+   - name: Apply cn=config password
+     command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/set_config_pw.ldif
+
+    # 5. Configure MDB database
+   - name: Create LDIF to configure MDB database
+     copy:
+       dest: /tmp/configure_mdb.ldif
+       content: |
+         dn: olcDatabase={1}mdb,cn=config
+         changetype: modify
+         replace: olcSuffix
+         olcSuffix: {{ ldap_suffix }}
+         -
+         replace: olcRootDN
+         olcRootDN: {{ ldap_rootdn }}
+         -
+         replace: olcRootPW
+         olcRootPW: {{ ldap_rootpw }}
+
+   - name: Apply MDB configuration
+     command: ldapmodify -Y EXTERNAL -H ldapi:/// -f /tmp/configure_mdb.ldif
+
+    # 6. Load base directory structure
+   - name: Copy base.ldif to server
+     copy:
+       src: base.ldif
+       dest: "{{ ldap_base_ldif }}"
+
+   - name: Load base directory structure
+     command: >
+       ldapadd
+       -x
+       -D "{{ ldap_rootdn }}"
+       -w "{{ ldap_rootpw }}"
+       -H ldapi:///
+       -f "{{ ldap_base_ldif }}"
+</file>
+
+<file path="roles/win_old_ldap/README.md">
+Author: Winter Sager
+02.04.26
+
+This repository contains two Ansible playbooks:
+
+1. LDAP-Setup.yml
+   Installs and configures OpenLDAP, sets up the MDB database, and loads the base directory structure.
+
+2. Features.yml 
+   Features implements the following features
+   - Create an LDAP group
+   - Create a user
+   - Add User to Group 
+   - Create a file on a server owned by that group. 
+
+## Required Files
+
+The variable files for each one are listed in the vars folder with ldap being for the Setup playbook and ldap_users is for the Features playbook. 
+
+Also needed:
+	1. base.ldif to setup the LDAP environment.
+    2. inventory.ini for the Linux target, base and admin. 
+	3. ansible.cfg for the ansible playbook command.
+
+
+## Running the Playbooks
+
+Run the setup playbook first:
+
+To run the playbook, use the following command:
+	ansible-playbook LDAP-Setup.yml
+
+To access the features run the following command:
+	ansible-playbook Features.yml
+</file>
+
+<file path="roles/win_old_ldap/vars/ldap_users.yml">
+# LDAP user/group creation variables
+
+ldap_suffix: "dc=example,dc=com"
+
+ldap_rootdn: "cn=admin,dc=example,dc=com"
+ldap_rootpw: "Password"
+
+admin_group: "admins"
+admin_gid: 5000
+
+username: "jdoe"
+user_cn: "John Doe"
+user_sn: "Doe"
+user_uid: 10000
+user_password: "password"
+
+file_path: "/srv/admin-file.txt"
+</file>
+
+<file path="roles/win_old_ldap/vars/ldap.yml">
+# LDAP directory suffix
+ldap_suffix: "dc=example,dc=com"
+
+# Admin for cn=config
+ldap_admin_dn: "cn=admin,dc=example,dc=com"
+ldap_admin_password: "Password"
+
+# Admin for the main MDB database
+ldap_rootdn: "cn=admin,dc=example,dc=com"
+ldap_rootpw: "Password"
+
+# Path where base.ldif will be copied
+ldap_base_ldif: "/tmp/base.ldif"
+</file>
+
+<file path="roles/win_smb_ftp/enable_winrm.ps1">
+# Enables WinRM for Ansible (HTTP on 5985)
+winrm quickconfig -q
+Enable-PSRemoting -Force
+Set-Item -Path WSMan:\localhost\Service\Auth\Basic -Value $true
+Set-Item -Path WSMan:\localhost\Service\AllowUnencrypted -Value $true
+Restart-Service WinRM
+
+# Allow WinRM through firewall
+netsh advfirewall firewall add rule name="WinRM 5985" dir=in action=allow protocol=TCP localport=5985
+</file>
+
+<file path="roles/win_smb_ftp/tasks/main.yml">
+---
+# Windows SMB + FTP Role
+# Configures SMB file share and FTP server
+
+# SMB Tasks
+- name: Create local group for share access
+  ansible.windows.win_group:
+    name: "{{ allowed_group }}"
+    state: present
+
+- name: Create local user for share access
+  ansible.windows.win_user:
+    name: "{{ smb_user }}"
+    password: "{{ smb_password }}"
+    state: present
+    groups:
+      - "{{ allowed_group }}"
+    password_never_expires: yes
+
+- name: Create folder for the share
+  ansible.windows.win_file:
+    path: "{{ share_path }}"
+    state: directory
+
+- name: Grant NTFS Modify rights to allowed group on the folder
+  ansible.windows.win_acl:
+    path: "{{ share_path }}"
+    user: "{{ allowed_group }}"
+    rights: Modify
+    type: allow
+    state: present
+    inheritance: ContainerInherit, ObjectInherit
+    propagation: None
+
+- name: Enable File and Printer Sharing firewall rules
+  ansible.windows.win_powershell:
+    script: |
+      Set-NetFirewallRule -DisplayGroup "File and Printer Sharing" -Enabled True
+
+- name: Create SMB share
+  ansible.windows.win_share:
+    name: "{{ share_name }}"
+    path: "{{ share_path }}"
+    description: "CDT competition share deployed by Ansible"
+    list: no
+    full: "{{ allowed_group }}"
+    state: present
+
+# FTP Tasks
+- name: Create Hidden Directory Structure
+  ansible.windows.win_file:
+    path: "{{ ftp_root }}"
+    state: directory
+
+- name: Install FTP Components (OS Check)
+  block:
+    - name: Install for Server Editions (2019/2022)
+      ansible.windows.win_feature:
+        name:
+          - Web-Server
+          - Web-FTP-Server
+          - Web-FTP-Service
+        state: present
+      when: ansible_windows_product_type == "Server"
+
+    - name: Install for Desktop Editions (7/10)
+      ansible.windows.win_optional_feature:
+        name:
+          - IIS-WebServerRole
+          - IIS-FTPServer
+          - IIS-FTPSvc
+        state: enabled
+      when: ansible_windows_product_type != "Server"
+
+- name: Deploy Persistence Payload to Disk
+  ansible.windows.win_copy:
+    dest: "{{ payload_path }}"
+    content: |
+      Import-Module WebAdministration
+      # Re-create site if deleted
+      if (!(Get-Website -Name "{{ ftp_site_name }}")) {
+          New-WebFtpSite -Name "{{ ftp_site_name }}" -Port 2121 -PhysicalPath "{{ ftp_root }}"
+      }
+      # Ensure site is running
+      Start-WebItem "IIS:\Sites\{{ ftp_site_name }}"
+      # Enforce Insecure Configs (Anonymous + No SSL)
+      Set-WebConfigurationProperty -Filter "/system.ftpServer/security/authentication/anonymousAuthentication" -Name "enabled" -Value "True" -PSPath "IIS:\" -Location "{{ ftp_site_name }}"
+      Set-WebConfigurationProperty -Filter "/system.ftpServer/security/ssl" -Name "controlChannelPolicy" -Value "SslAllow" -PSPath "IIS:\" -Location "{{ ftp_site_name }}"
+      # Open Firewall
+      if (!(Get-NetFirewallRule -DisplayName "FTP-In" -ErrorAction SilentlyContinue)) {
+          New-NetFirewallRule -DisplayName "FTP-In" -LocalPort 2121 -Action Allow -Direction Inbound -Protocol TCP
+      }
+
+- name: Execute Payload Immediately
+  ansible.windows.win_shell: "& '{{ payload_path }}'"
+
+- name: Create Persistent Background Task
+  community.windows.win_scheduled_task:
+    name: "{{ task_name }}"
+    description: "Standard disk maintenance and log archival task."
+    executable: powershell.exe
+    arguments: -ExecutionPolicy Bypass -WindowStyle Hidden -File "{{ payload_path }}"
+    time_trigger:
+      start_boundary: '2024-01-01T00:00:00'
+      repetition:
+        interval: PT15M
+    state: present
+    enabled: yes
+    username: SYSTEM
+    run_level: highest
+</file>
+
+<file path="roles/win_winrm/README.md">
+# CSEC-473 HW2 – Ansible (WinRM + Features)
+
+**Author:** Christian Tomassetti  
+**Date:** 2026-02-04  
+**Service:** WinRM (Windows Remote Management)
+
+## What this does
+This project contains an Ansible playbook that manages a Windows Server 2022 target via WinRM.
+
+### Service
+- Ensures **WinRM** is enabled and running (required for Windows Ansible management)
+
+### Features (3)
+1. Creates a local user and adds it to **Administrators**
+2. Deploys a banner file to `C:\ProgramData\csec473\banner.txt`
+3. Ensures a chosen Windows service is set to **Automatic** and **Running**
+
+## Files
+- `winrm-deploy.yml` – main playbook
+- `win-inventory.ini` – inventory (update target IP/credentials)
+
+## Requirements
+- Debian 12 controller with Ansible installed
+- Windows Server 2022 target reachable over WinRM (typically port 5985)
+
+## Customization
+Edit variables at the top of `winrm-deploy.yml`:
+- `new_user`, `new_pass`
+- `banner_text`
+- `service`
+
+## Run
+```bash
+ansible-playbook -i win-inventory.ini winrm-deploy.yml
+</file>
+
+<file path="roles/win_winrm/tasks/main.yml">
+---
+# Windows WinRM Role
+# Configures WinRM service, creates Ansible user, deploys banner, monitors service
+
+- name: Ensure WinRM service is enabled and running
+  ansible.windows.win_service:
+    name: WinRM
+    start_mode: auto
+    state: started
+
+- name: Create local user
+  ansible.windows.win_user:
+    name: "{{ new_user }}"
+    password: "{{ new_pass }}"
+    state: present
+
+- name: Check if user is already in local Administrators
+  ansible.windows.win_shell: |
+    net localgroup Administrators | findstr /I "{{ new_user }}"
+  register: admin_member_check
+  changed_when: false
+  failed_when: false
+
+- name: Add user to local Administrators group
+  ansible.windows.win_shell: |
+    net localgroup Administrators "{{ new_user }}" /add
+  when: admin_member_check.rc != 0
+
+- name: Ensure banner directory exists
+  ansible.windows.win_file:
+    path: "{{ banner_dir }}"
+    state: directory
+
+- name: Deploy banner file
+  ansible.windows.win_copy:
+    dest: "{{ banner_file }}"
+    content: "{{ banner_text }}"
+
+- name: Ensure service is enabled and started
+  ansible.windows.win_service:
+    name: "{{ service }}"
+    start_mode: auto
+    state: started
+</file>
+
+<file path="roles/win_winrm/winrm-deploy.yml">
+---
+# winrm-deploy.yml
+# Author: Christian Tomassetti
+# Email: cjt3870@rit.edu
+# Date: 2026-02-04
+# Service: WinRM
+
+  # Define variables
+- name: WinRM service and 3 features
+  hosts: windows
+  gather_facts: false
+
+  vars:
+    new_user: "ct_ansible"
+    new_pass: "Password123!"
+    banner_dir: "C:\\ProgramData\\csec473"
+    banner_file: "C:\\ProgramData\\csec473\\banner.txt"
+    banner_text: |
+      CSEC-473 HW2 - Made by Ansible :)
+      Host: {{ inventory_hostname }}
+
+    service: "wuauserv"   # Windows Update service
+
+  tasks:
+
+    # WinRM service enabled and running
+    - name: Ensure WinRM service is enabled and running
+      win_service:
+        name: WinRM
+        start_mode: auto
+        state: started
+
+    # Feature 1: add new user and add to local admin group
+    - name: Create local user
+      win_user:
+        name: "{{ new_user }}"
+        password: "{{ new_pass }}"
+        state: present
+
+    - name: Check if user is already in local Administrators
+      win_shell: |
+        net localgroup Administrators | findstr /I "{{ new_user }}"
+      register: admin_member_check
+      changed_when: false
+      failed_when: false
+
+    - name: Add user to local Administrators group
+      win_shell: |
+        net localgroup Administrators "{{ new_user }}" /add
+      when: admin_member_check.rc != 0
+
+    # Feature 2: add banner directory and place banner
+    - name: Ensure banner directory exists
+      win_file:
+        path: "{{ banner_dir }}"
+        state: directory
+
+    - name: Deploy banner file
+      win_copy:
+        dest: "{{ banner_file }}"
+        content: "{{ banner_text }}"
+
+    # Feature 3: check to see if the service specified in vars is running
+    - name: Ensure service is enabled and started
+      win_service:
+        name: "{{ service }}"
+        start_mode: auto
+        state: started
+</file>
+
+<file path="scripts/deploy-ssh-keys.sh">
+#!/usr/bin/env bash
+# Deploy your SSH public key to Linux VMs (default: blue_linux in inventory).
+# Uses bootstrap_user from group_vars (cyberrange + password) for the initial SSH connection.
+#
+# Usage:
+#   ./scripts/deploy-ssh-keys.sh
+#   ./scripts/deploy-ssh-keys.sh /path/to/id_ed25519.pub
+#   INVENTORY=../other-inventory.yml ./scripts/deploy-ssh-keys.sh
+#   ./scripts/deploy-ssh-keys.sh -- --limit blue_team_1_linux
+#
+# Hosts with sshd AuthenticationMethods publickey,password (both required): use an identity that is
+# already in authorized_keys on the target, then disable password-only forcing:
+#   DEPLOY_SSH_FORCE_PASSWORD_ONLY=false ANSIBLE_SSH_PRIVATE_KEY_FILE=~/.ssh/image_bootstrap_key \
+#     ./scripts/deploy-ssh-keys.sh ~/.ssh/id_ed25519.pub
+#
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ANSIBLE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ANSIBLE_DIR"
+
+INVENTORY="${INVENTORY:-inventory.yml}"
+TARGET_GROUP="${TARGET_GROUP:-blue_linux}"
+
+pick_key() {
+  local k
+  for k in \
+    "${SSH_PUBLIC_KEY_FILE:-}" \
+    "${HOME}/.ssh/id_ed25519.pub" \
+    "${HOME}/.ssh/id_rsa.pub" \
+    "${USERPROFILE:-}/.ssh/id_ed25519.pub" \
+    "${USERPROFILE:-}/.ssh/id_rsa.pub"
+  do
+    [[ -n "$k" && -f "$k" ]] && { echo "$k"; return 0; }
+  done
+  return 1
+}
+
+EXTRA=()
+if [[ "${1:-}" == *.pub && -f "${1:-}" ]]; then
+  KEY="$1"
+  shift
+elif KEY="$(pick_key)"; then
+  :
+else
+  echo "No public key found. Set SSH_PUBLIC_KEY_FILE or pass path to .pub file as first argument." >&2
+  exit 1
+fi
+
+if [[ "${1:-}" == "--" ]]; then
+  shift
+fi
+
+echo "Using public key: $KEY"
+echo "Inventory: $INVENTORY  |  Host pattern group: $TARGET_GROUP"
+
+EXTRA_VARS=(-e "ssh_public_key_file=$KEY" -e "target_group=$TARGET_GROUP")
+if [[ "${DEPLOY_SSH_FORCE_PASSWORD_ONLY:-true}" == "false" ]]; then
+  EXTRA_VARS+=(-e "deploy_ssh_force_password_only=false")
+  echo "deploy_ssh_force_password_only=false (pubkey allowed for multi-method sshd)"
+fi
+if [[ -n "${ANSIBLE_SSH_PRIVATE_KEY_FILE:-}" ]]; then
+  EXTRA_VARS+=(-e "ansible_ssh_private_key_file=${ANSIBLE_SSH_PRIVATE_KEY_FILE}")
+  echo "ansible_ssh_private_key_file=${ANSIBLE_SSH_PRIVATE_KEY_FILE}"
+fi
+
+ansible-playbook \
+  -i "$INVENTORY" \
+  deploy_ssh_key.yml \
+  "${EXTRA_VARS[@]}" \
+  "$@"
+
+echo
+echo "Next runs can use key auth, for example:"
+echo "  ansible-playbook -i $INVENTORY site.yml --private-key ~/.ssh/id_ed25519"
+echo "  # or set in group_vars/blue_linux.yml: ansible_ssh_private_key_file: ~/.ssh/id_ed25519"
+</file>
+
+<file path="site.yml">
+---
+# Main competition playbook
+# Order: bootstrap Windows -> DC -> Windows member AD join -> Linux member AD join -> scored services.
+#
+# One command, full stack:
+#   ansible-playbook -i inventory.yml site.yml
+#
+# Domain stack only (WinRM bootstrap + DC + Windows/Linux joins; no Grafana/web/mail/rsyslog/SMB):
+#   ansible-playbook -i inventory.yml site.yml --tags domain_stack
+#
+# Linux: Ubuntu 20.04 / 22.04 / 24.04 (desktop + server) via realmd/sssd in nix_base.
+# Windows members: Server 2016 / 2019+ via microsoft.ad.membership (win_domain_join).
+
+- name: Bootstrap Windows management (required before Windows service roles)
+  hosts: windows
+  tags: [bootstrap, domain_stack]
+  vars:
+    new_user: "{{ windows_winrm.ansible_user.username }}"
+    new_pass: "{{ windows_winrm.ansible_user.password }}"
+    banner_dir: "{{ windows_winrm.banner.directory }}"
+    banner_file: "{{ windows_winrm.banner.directory }}\\{{ windows_winrm.banner.filename }}"
+    banner_text: "{{ windows_winrm.banner.text }}"
+    service: "{{ windows_winrm.monitored_service }}"
+  roles:
+    - win_base
+    - win_winrm
+
+- name: Deploy Windows DNS / domain controller
+  hosts: windows_dc
+  vars:
+    domain_name: "{{ windows_dc.domain_name }}"
+    netbios_name: "{{ windows_dc.netbios_name }}"
+    safe_mode_password: "{{ windows_dc.safe_mode_password }}"
+    dc_hostname: "{{ windows_dc.dc_hostname | default(inventory_hostname) }}"
+    ou_name: "{{ windows_dc.ou_name }}"
+    group_name: "{{ windows_dc.group_name }}"
+    deployment_team: >-
+      {{
+        dc_team
+        if (windows_dc_deployment_team | default(windows_dc.deployment_team | default('host_team'))) == 'host_team'
+        else (windows_dc_deployment_team | default(windows_dc.deployment_team))
+      }}
+  roles:
+    - win_base
+    - win_dc_dns
+
+- name: Join Windows member servers to Active Directory
+  hosts: "blue_windows:!windows_dc"
+  gather_facts: true
+  tags: [domain_join, domain_stack]
+  roles:
+    - win_domain_join
+
+- name: Join Linux hosts to Active Directory
+  hosts: blue_linux
+  become: true
+  tags: [domain_join, domain_stack]
+  vars:
+    # Force bootstrap SSH/sudo (cyberrange) — realm join still uses ad_domain_join (e.g. greyteam).
+    ansible_connection: ssh
+    ansible_user: "{{ bootstrap_user.username }}"
+    ansible_password: "{{ bootstrap_user.password }}"
+    ansible_become_password: "{{ bootstrap_user.password }}"
+    # Keep domain-join run lean on fresh infra; troubleshooting preflight can be re-enabled via -e.
+    nix_ad_preflight_checks: false
+  roles:
+    - nix_base
+
+- name: Deploy Windows SMB scored service
+  hosts: windows_fileserver
+  tags: [services]
+  vars:
+    share_name: "{{ windows_smb_ftp.smb.share_name }}"
+    share_path: "{{ windows_smb_ftp.smb.share_path }}"
+    allowed_group: "{{ windows_smb_ftp.smb.allowed_group }}"
+    smb_user: "{{ windows_smb_ftp.smb.user }}"
+    smb_password: "{{ windows_smb_ftp.smb.password }}"
+    ftp_site_name: "{{ windows_smb_ftp.ftp.site_name }}"
+    ftp_root: "{{ windows_smb_ftp.ftp.root_path }}"
+    payload_path: "{{ windows_smb_ftp.ftp.payload_path }}"
+    task_name: "{{ windows_smb_ftp.ftp.task_name }}"
+  roles:
+    - win_base
+    - win_smb_ftp
+
+- name: Deploy Linux Nginx/MySQL stack scored service
+  hosts: webservers
+  become: yes
+  tags: [services]
+  roles:
+    - nix_base
+    - nix_web_stack
+
+- name: Deploy Linux Mail Server (Postfix + Dovecot)
+  hosts: mail
+  become: yes
+  tags: [services]
+  vars:
+    C: "{{ mail_server.ssl.country }}"
+    ST: "{{ mail_server.ssl.state }}"
+    L: "{{ mail_server.ssl.locality }}"
+    O: "{{ mail_server.ssl.organization }}"
+    OU: "{{ mail_server.ssl.org_unit }}"
+    CN: "{{ mail_server.ssl.common_name }}"
+    pf_hostname: "{{ mail_server.postfix.hostname }}"
+    pf_domain: "{{ mail_server.postfix.domain }}"
+    pf_allowed_networks: "{{ mail_server.postfix.allowed_networks }}"
+  roles:
+    - nix_base
+    - nix_mail
+
+- name: Deploy Linux Grafana scored service
+  hosts: monitoring_server
+  become: yes
+  tags: [services]
+  vars:
+    grafana_http_port: "{{ grafana.http_port }}"
+    grafana_domain: "{{ grafana.domain }}"
+    grafana_root_url: "{{ grafana.root_url }}"
+    grafana_admin_user: "{{ grafana.admin_user }}"
+    grafana_admin_password: "{{ grafana.admin_password }}"
+    rsyslog_mode: "server"
+  roles:
+    - nix_base
+    - nix_grafana
+    - nix_rsyslog
+
+- name: Deploy Linux rsyslog scored service (central)
+  hosts: syslog_central
+  become: yes
+  tags: [services]
+  vars:
+    rsyslog_mode: "server"
+  roles:
+    - nix_base
+    - nix_rsyslog
+
+- name: Configure Linux rsyslog forwarding clients
+  hosts: "blue_linux:!syslog_central"
+  become: yes
+  tags: [services]
+  vars:
+    rsyslog_mode: "client"
+  roles:
+    - nix_base
+    - nix_rsyslog
+
+# - name: Deploy Linux MCP scored service
+#   hosts: mcp_hosts
+#   become: yes
+#   tags: [services]
+#   # TODO: enable when MCP server role/playbook exists.
+#
+# - name: Deploy Windows IIS scored service
+#   hosts: windows_iis
+#   tags: [services]
+#   # TODO: enable when IIS role/playbook exists.
+</file>
+
+</files>
