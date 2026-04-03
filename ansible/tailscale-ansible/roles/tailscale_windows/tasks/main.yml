@@ -35,11 +35,15 @@
     & "C:\Program Files\Tailscale\tailscale.exe" up --authkey="{{ tailscale_authkey }}" {{ tailscale_args }}
   register: tailscale_up
   changed_when: "'already authenticated' not in tailscale_up.stderr"
-  # no_log: true  # Re-enable after confirming auth works
+  no_log: true
 
-- name: Verify Tailscale is connected
-  ansible.windows.win_command: '"C:\Program Files\Tailscale\tailscale.exe" status'
+- name: Wait for Tailscale to reach a connected state
+  ansible.windows.win_shell: |
+    & "C:\Program Files\Tailscale\tailscale.exe" status
   register: tailscale_status
+  until: "'NoState' not in tailscale_status.stdout and tailscale_status.rc == 0"
+  retries: 12
+  delay: 5
   changed_when: false
 
 - name: Show Tailscale status
