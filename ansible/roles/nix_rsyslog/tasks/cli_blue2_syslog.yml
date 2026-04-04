@@ -27,7 +27,7 @@
         dest: /etc/rsyslog.d/90-forward.conf
         mode: '0644'
         content: |
-          *.* @@{{ hostvars[groups['syslog_central'][0]].ansible_host | default(groups['syslog_central'][0]) }}:514
+          *.* @@{{ hostvars[groups['blue2-backcheck'][0]].ansible_host | default(groups['blue2-backcheck'][0]) }}:514
       notify: Restart rsyslog
 
   handlers:
