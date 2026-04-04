@@ -70,6 +70,10 @@ Primary definitions live in [`group_vars/linux.yml`](../../group_vars/linux.yml)
 | `allowed_subnets` | Comma-joined into **`REF_REVIEW_ALLOWED_SUBNETS`**; targets outside these are rejected. |
 | `poison_network` | CIDR(s) for “false signal” /etc/hosts checks (**`REF_REVIEW_POISON_CIDR`**). |
 | `pip_packages` | List passed to `ansible.builtin.pip` inside the venv. |
+| `focal_enable_universe` | Ubuntu 20.04: run `add-apt-repository universe` (default true). Used when **`focal_use_deadsnakes_ppa`** is false. |
+| `focal_use_deadsnakes_ppa` | Ubuntu 20.04: when true (default), the role runs [`files/install_python310_focal.sh`](files/install_python310_focal.sh) — `software-properties-common`, Universe, deadsnakes PPA, rewrite to **`ppa.launchpadcontent.net`**, then **`apt-get install`** `python3.10`, `python3.10-venv`, `python3.10-distutils`. Set false on airgapped labs and rely on Universe-only apt (may lack `python3.10` on some mirrors). |
+| `focal_universe_list_fallback` | When deadsnakes is **disabled**: if `add-apt-repository` is insufficient, write **`/etc/apt/sources.list.d/ref-review-mcp-universe.list`** (default true). |
+| `focal_universe_mirror` | Base URL for that `.list` line (default `http://archive.ubuntu.com/ubuntu`); set to your **same mirror** as existing `deb` lines (e.g. `http://nova.clouds.archive.ubuntu.com/ubuntu`) if `archive.ubuntu.com` is unreachable. |
 | `file_owner` | Install tree owner: domain user (`greyteam@realm`). |
 | `file_group` | Install tree group: domain user’s **primary group** from NSS (default `domain users@realm`), not the UPN—`chgrp` cannot use `greyteam@realm`. Override if `id greyteam@realm` shows a different group. |
 | `env_file` | Path written by template (default `/etc/default/ref_review_mcp`). |
@@ -266,7 +270,7 @@ The process waits on stdin for MCP JSON-RPC. For a quick protocol check, use **[
 | MCP SSH always fails | `REF_REVIEW_SSH_IDENTITY_FILE` path wrong, file missing, or permissions; run section **B**. |
 | `sudo` NAT table empty / unreadable | Peers may need passwordless sudo for `greyteam` to read `iptables -t nat -L -n`, or accept degraded NAT visibility (tool reports that). |
 | Open WebUI shows no tools | stdio command wrong, crash on start (check venv `mcp` install), or wrong user. |
-| **`No package matching 'python3.10'`** on 20.04 | Only **`main`** may be enabled, or your mirror omits Universe. The role enables **Universe** and **deadsnakes** by default; ensure outbound HTTPS to Ubuntu archives / Launchpad, or use 22.04+ images, or set `focal_use_deadsnakes_ppa: false` and fix `sources.list` / local mirror manually. |
+| **`No package matching 'python3.10'`** on 20.04 | Only **`main`** may be enabled, or your mirror omits Universe. Pull the latest **`nix_mcp`** role: it adds a **`sources.list.d`** Universe line if `add-apt-repository` fails, runs **`apt update`**, then preflights with **`apt-cache madison`**. Set **`ref_review_mcp.focal_universe_mirror`** to the **same mirror host** as your existing `deb` lines (e.g. OpenStack often uses `http://nova.clouds.archive.ubuntu.com/ubuntu`). If Launchpad is allowed, set **`focal_use_deadsnakes_ppa: true`**. Easiest long-term: **22.04+** images for `mcp_hosts`. |
 
 ---
 

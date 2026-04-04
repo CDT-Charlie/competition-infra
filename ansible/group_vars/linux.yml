@@ -56,6 +56,9 @@ ref_review_mcp:
   # 20.04 only: see nix_mcp README — Universe + optional deadsnakes for python3.10.
   focal_enable_universe: true
   focal_use_deadsnakes_ppa: true
+  # If python3.10 still missing, set focal_universe_mirror to your tenant apt mirror (must publish universe).
+  focal_universe_list_fallback: true
+  focal_universe_mirror: "http://nova.clouds.archive.ubuntu.com/ubuntu"
   # Owner = domain user; group = primary group from NSS (id / getent), not the UPN (chgrp cannot use user@realm).
   file_owner: "greyteam@{{ ad_domain }}"
   file_group: "domain users@{{ ad_domain }}"

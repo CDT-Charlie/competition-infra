@@ -15,6 +15,9 @@ ref_review_mcp:
   # Ubuntu 20.04: python3.10 is not in main; enable Universe and/or deadsnakes so apt can install it.
   focal_enable_universe: true
   focal_use_deadsnakes_ppa: true
+  # If add-apt-repository universe fails or is a no-op, write this pocket via sources.list.d (override mirror for airgap).
+  focal_universe_list_fallback: true
+  focal_universe_mirror: "http://archive.ubuntu.com/ubuntu"
   file_owner: "greyteam@lakeplacid.local"
   file_group: "domain users@lakeplacid.local"
   env_file: "/etc/default/ref_review_mcp"
