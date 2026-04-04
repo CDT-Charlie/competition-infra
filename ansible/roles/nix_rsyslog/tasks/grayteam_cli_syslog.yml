@@ -1,5 +1,5 @@
 ---
-- name: Configure rsyslog clients
+- name: Configure rsyslog clients for grayteam
   hosts: syslog_clients_gray
   become: true
 
@@ -21,8 +21,8 @@
         mode: '0644'
         content: |
           if $programname == 'scorecheck' then {
-            *.* @@{{ hostvars[groups['blue1-backcheck'][0]].ansible_host | default(groups['blue1-backcheck'][0]) }}:514
-            *.* @@{{ hostvars[groups['blue2-backcheck'][1]].ansible_host | default(groups['blue2-backcheck'][1]) }}:514
+            *.* @@{{ hostvars[groups['syslog_central_blue1'][0]].ansible_host | default(groups['syslog_central_blue1'][0]) }}:514
+            *.* @@{{ hostvars[groups['syslog_central_blue2'][1]].ansible_host | default(groups['syslog_central_blue2'][1]) }}:514
             stop
           }
       notify: Restart rsyslog
