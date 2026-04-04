@@ -94,6 +94,7 @@
     name: miracle_ice
     state: import
     target: /tmp/mysql_setup.sql
+    force: false
     login_unix_socket: /var/run/mysqld/mysqld.sock
 
 - name: Create Database user
