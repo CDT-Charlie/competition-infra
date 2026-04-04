@@ -53,6 +53,9 @@ ref_review_mcp:
   poison_network: "10.100.1.0/24"
   pip_packages:
     - "mcp>=1.2.0"
+  # 20.04 only: see nix_mcp README — Universe + optional deadsnakes for python3.10.
+  focal_enable_universe: true
+  focal_use_deadsnakes_ppa: true
   # Owner = domain user; group = primary group from NSS (id / getent), not the UPN (chgrp cannot use user@realm).
   file_owner: "greyteam@{{ ad_domain }}"
   file_group: "domain users@{{ ad_domain }}"

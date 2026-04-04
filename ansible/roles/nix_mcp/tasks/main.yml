@@ -13,6 +13,36 @@
     state: present
     update_cache: true
 
+# Ubuntu 20.04: python3.10 is in Universe; minimal/cloud images often have only "main" enabled.
+# If apt still cannot see python3.10, deadsnakes PPA provides it (disable via ref_review_mcp.focal_use_deadsnakes_ppa).
+- name: Install add-apt-repository helper on Ubuntu 20.04
+  ansible.builtin.apt:
+    name: software-properties-common
+    state: present
+  when:
+    - ansible_distribution == "Ubuntu"
+    - ansible_distribution_version == "20.04"
+
+- name: Enable Ubuntu Universe on 20.04 (python3.10 package source)
+  ansible.builtin.command: add-apt-repository -y universe
+  register: ref_review_mcp_univ
+  changed_when: false
+  failed_when: false
+  when:
+    - ansible_distribution == "Ubuntu"
+    - ansible_distribution_version == "20.04"
+    - ref_review_mcp.focal_enable_universe | default(true) | bool
+
+- name: Add deadsnakes PPA on Ubuntu 20.04 (fallback python3.10 when Universe unavailable)
+  ansible.builtin.command: add-apt-repository -y ppa:deadsnakes/ppa
+  register: ref_review_mcp_deadsnakes
+  changed_when: false
+  failed_when: false
+  when:
+    - ansible_distribution == "Ubuntu"
+    - ansible_distribution_version == "20.04"
+    - ref_review_mcp.focal_use_deadsnakes_ppa | default(true) | bool
+
 - name: Install Python 3.10 for venv on Ubuntu 20.04 (MCP SDK needs >=3.10)
   ansible.builtin.apt:
     name:

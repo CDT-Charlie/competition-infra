@@ -12,6 +12,9 @@ ref_review_mcp:
   poison_network: "10.100.1.0/24"
   pip_packages:
     - "mcp>=1.2.0"
+  # Ubuntu 20.04: python3.10 is not in main; enable Universe and/or deadsnakes so apt can install it.
+  focal_enable_universe: true
+  focal_use_deadsnakes_ppa: true
   file_owner: "greyteam@lakeplacid.local"
   file_group: "domain users@lakeplacid.local"
   env_file: "/etc/default/ref_review_mcp"

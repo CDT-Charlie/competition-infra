@@ -13,7 +13,7 @@ This directory is the **Ansible role** `nix_mcp`. Deployment is driven from the 
 | Requirement | Notes |
 |---------------|--------|
 | **Target hosts** | Inventory group **`mcp_hosts`**: `blue1-cross-check`, `blue2-cross-check` (see [`inventory.yml`](../../inventory.yml)). |
-| **OS** | Ubuntu 20.04, 22.04, or 24.04 (role uses `apt`). **20.04:** the role installs **`python3.10`** + **`python3.10-venv`** (from Universe) because PyPI **`mcp`** requires **Python ≥3.10**; default `python3` on 20.04 is 3.8 and cannot install `mcp`. |
+| **OS** | Ubuntu 20.04, 22.04, or 24.04 (role uses `apt`). **20.04:** the role installs **`python3.10`** + **`python3.10-venv`** because PyPI **`mcp`** requires **Python ≥3.10**. On Focal, **`python3.10` is not in the `main` pocket**; the role enables **Universe** and (by default) the **deadsnakes PPA** so `apt` can see the packages. Set `ref_review_mcp.focal_use_deadsnakes_ppa: false` if Launchpad is blocked (you must then have Universe + a mirror that ships `python3.10`). |
 | **Active Directory / SSSD** | Domain user **`greyteam@lakeplacid.local`** (from `ad_domain` in [`group_vars/all.yml`](../../group_vars/all.yml)) must exist on cross-check and peers (typically after **`nix_base`** domain join). |
 | **Peer Linux VMs** | Other scored Linux boxes (hat-trick, triple-deke, etc.) must be joined and reachable from cross-check over SSH. |
 | **Network** | MCP only allows `target_ip` inside `REF_REVIEW_ALLOWED_SUBNETS` (see variables below). |
@@ -266,6 +266,7 @@ The process waits on stdin for MCP JSON-RPC. For a quick protocol check, use **[
 | MCP SSH always fails | `REF_REVIEW_SSH_IDENTITY_FILE` path wrong, file missing, or permissions; run section **B**. |
 | `sudo` NAT table empty / unreadable | Peers may need passwordless sudo for `greyteam` to read `iptables -t nat -L -n`, or accept degraded NAT visibility (tool reports that). |
 | Open WebUI shows no tools | stdio command wrong, crash on start (check venv `mcp` install), or wrong user. |
+| **`No package matching 'python3.10'`** on 20.04 | Only **`main`** may be enabled, or your mirror omits Universe. The role enables **Universe** and **deadsnakes** by default; ensure outbound HTTPS to Ubuntu archives / Launchpad, or use 22.04+ images, or set `focal_use_deadsnakes_ppa: false` and fix `sources.list` / local mirror manually. |
 
 ---
 
