@@ -7,7 +7,7 @@
 # This playbook deploys and configures rsyslog on designated client machines
 # Clients forward their logs to the central log server
 - name: Configure rsyslog clients
-  hosts: syslog_clients
+  hosts: syslog_clients_blue2
   become: true
 
   tasks:
