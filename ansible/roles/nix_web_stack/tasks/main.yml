@@ -16,7 +16,7 @@
 # PHP
 - name: Start and enable PHP-FPM
   service:
-    name: php-fpm
+    name: php7.4-fpm
     state: started
     enabled: yes
 
