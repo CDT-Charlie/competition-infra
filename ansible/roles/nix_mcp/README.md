@@ -67,7 +67,8 @@ Primary definitions live in [`group_vars/linux.yml`](../../group_vars/linux.yml)
 | `allowed_subnets` | Comma-joined into **`REF_REVIEW_ALLOWED_SUBNETS`**; targets outside these are rejected. |
 | `poison_network` | CIDR(s) for “false signal” /etc/hosts checks (**`REF_REVIEW_POISON_CIDR`**). |
 | `pip_packages` | List passed to `ansible.builtin.pip` inside the venv. |
-| `file_owner` / `file_group` | Ownership for install tree (domain principal). |
+| `file_owner` | Install tree owner: domain user (`greyteam@realm`). |
+| `file_group` | Install tree group: domain user’s **primary group** from NSS (default `domain users@realm`), not the UPN—`chgrp` cannot use `greyteam@realm`. Override if `id greyteam@realm` shows a different group. |
 | `env_file` | Path written by template (default `/etc/default/ref_review_mcp`). |
 
 ### Environment file → MCP behavior

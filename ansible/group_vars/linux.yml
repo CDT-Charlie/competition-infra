@@ -53,6 +53,7 @@ ref_review_mcp:
   poison_network: "10.100.1.0/24"
   pip_packages:
     - "mcp>=1.2.0"
+  # Owner = domain user; group = primary group from NSS (id / getent), not the UPN (chgrp cannot use user@realm).
   file_owner: "greyteam@{{ ad_domain }}"
-  file_group: "greyteam@{{ ad_domain }}"
+  file_group: "domain users@{{ ad_domain }}"
   env_file: "/etc/default/ref_review_mcp"

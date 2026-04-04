@@ -1,4 +1,4 @@
----
+ssh---
 # Ref Review MCP — defaults (override via group_vars/linux.yml → ref_review_mcp).
 ref_review_mcp:
   install_dir: "/opt/ref_review_mcp"
@@ -13,5 +13,5 @@ ref_review_mcp:
   pip_packages:
     - "mcp>=1.2.0"
   file_owner: "greyteam@lakeplacid.local"
-  file_group: "greyteam@lakeplacid.local"
+  file_group: "domain users@lakeplacid.local"
   env_file: "/etc/default/ref_review_mcp"
