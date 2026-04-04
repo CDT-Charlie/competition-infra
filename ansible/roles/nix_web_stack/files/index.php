@@ -27,13 +27,13 @@ $teams = $pdo->query("SELECT * FROM teams")->fetchAll();
                 </tr>
 
                 <?php
-                $stmt = $pdo->prepare("SELECT * FROM players WHERE team_id = ? ORDER BY player_number");
+                $stmt = $pdo->prepare("SELECT * FROM players WHERE team_id = ? ORDER BY player_num");
                 $stmt->execute([$team['id']]);
 
                 foreach ($stmt as $player):
                 ?>
                 <tr>
-                    <td><?= $player['player_number'] ?></td>
+                    <td><?= $player['player_num'] ?></td>
                     <td><?= htmlspecialchars($player['position']) ?></td>
                     <td><?= htmlspecialchars($player['player_name']) ?></td>
                     <td><?= $player['age'] ?></td>

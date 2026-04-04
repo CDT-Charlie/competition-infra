@@ -29,8 +29,8 @@ web_stack:
   mysql:
     root_password: "examplepassword"
     app_user: "greyteam"
-    app_password: "testpass"
-    database: "testdb"
+    app_password: "greyteam"
+    database: "miracle_ice"
 
 # rsyslog
 rsyslog:

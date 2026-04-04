@@ -8,15 +8,15 @@
     name: 
       - nginx
       - mysql-server
-      - php-fpm
-      - php-mysql
+      - php8.1-fpm
+      - php8.1-mysql
     state: present
     update_cache: yes
 
 # PHP
 - name: Start and enable PHP-FPM
   service:
-    name: php7.4-fpm
+    name: php8.1-fpm
     state: started
     enabled: yes
 
@@ -65,11 +65,6 @@
     path: /etc/nginx/sites-enabled/default
     state: absent
 
-- name: Restart Nginx 
-  service: 
-    name: nginx
-    state: restarted
-
 # MySQL Setup
 - name: Install python MySQL dependency
   apt:
@@ -105,7 +100,12 @@
   community.mysql.mysql_user:
     name: "{{ web_stack.mysql.app_user }}"
     password: "{{ web_stack.mysql.app_password }}"
-    priv: "miracle_ice.*:ALL"
-    host: localhost
+    priv: "miracle_ice.*:SELECT,INSERT,UPDATE,DELETE"
+    host: 127.0.0.1
     state: present
     login_unix_socket: /var/run/mysqld/mysqld.sock
+
+- name: Restart Nginx 
+  service: 
+    name: nginx
+    state: restarted
