@@ -69,12 +69,16 @@ all:
     webservers:
       hosts:
         blue1-hat-trick:
+          db_host: 10.100.2.5
         blue2-hat-trick:
+          db_host: 10.100.3.5
 
     mysql_hosts:
       hosts:
         blue1-triple-deke:
+          webserver_host: 10.100.2.4
         blue2-triple-deke:
+          webserver_host: 10.100.3.4
 
     mail:
       hosts:

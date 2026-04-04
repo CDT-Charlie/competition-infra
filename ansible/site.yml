@@ -83,13 +83,21 @@
     - win_base
     - win_smb_ftp
 
-- name: Deploy Linux Nginx/MySQL stack scored service
+- name: Deploy Linux Nginx Scored Service
   hosts: webservers
   become: yes
   tags: [services]
   roles:
     - nix_base
     - nix_web_stack
+
+- name: Deploy Linux MySQL Scored Service
+  hosts: mysql_hosts
+  become: yes
+  tags: [services]
+  roles:
+    - nix_base
+    - nix_mysql
 
 - name: Deploy Linux Mail Server (Postfix + Dovecot)
   hosts: mail

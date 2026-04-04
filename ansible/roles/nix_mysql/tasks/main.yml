@@ -1,0 +1,57 @@
+---
+# Author: Caroline Richards
+# Email: cpr9499
+
+- name: Install MySQL Server
+  apt: 
+    name: mysql-server
+    state: present
+    update_cache: yes
+
+- name: Install python MySQL dependency
+  apt:
+    name: python3-pymysql
+    state: present
+
+- name: Start and enable MySQL
+  service:
+    name: mysql
+    state: started
+    enabled: yes
+
+- name: Copy SQL setup script
+  copy:
+    src: mysql_setup.sql
+    dest: /tmp/mysql_setup.sql
+    mode: '0644'
+
+- name: Set MySQL bind address
+  lineinfile:
+    path: /etc/mysql/mysql.conf.d/mysqld.cnf
+    regexp: '^bind-address'
+    line: 'bind-address = 0.0.0.0'
+    state: present
+  notify: Restart MySQL
+
+- name: Create database
+  community.mysql.mysql_db:
+    name: miracle_ice
+    state: present
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+
+- name: Import SQL setup script
+  community.mysql.mysql_db:
+    name: miracle_ice
+    state: import
+    target: /tmp/mysql_setup.sql
+    force: false
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+
+- name: Create Database user
+  community.mysql.mysql_user:
+    name: "{{ web_stack.mysql.app_user }}"
+    password: "{{ web_stack.mysql.app_password }}"
+    priv: "miracle_ice.*:SELECT,INSERT,UPDATE,DELETE"
+    host: "{{ webserver_host }}"
+    state: present
+    login_unix_socket: /var/run/mysqld/mysqld.sock

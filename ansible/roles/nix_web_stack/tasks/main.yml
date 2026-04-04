@@ -3,13 +3,11 @@
 # Email: cpr9499@rit.edu
 
 # This playbook deploys a web stack on a Linux host with Nginx, MySQL, and PHP
-- name: Install Nginx, MySQL, and PHP packages
+- name: Install Nginx and PHP packages
   apt: 
     name: 
       - nginx
-      - mysql-server
       - php-fpm
-      - php-mysql
     state: present
     update_cache: yes
 
@@ -44,9 +42,16 @@
     mode: '0644'
   loop:
     - index.php
-    - config.php
     - style.css
     - score.php
+  
+- name: Deploy config.php
+  template:
+    src: config.php.j2
+    dest: "{{ web_stack.web_root }}/config.php"
+    owner: www-data
+    group: www-data
+    mode: '0644'
 
 - name: Copy Nginx configuration
   copy: 
@@ -64,47 +69,6 @@
   file: 
     path: /etc/nginx/sites-enabled/default
     state: absent
-
-# MySQL Setup
-- name: Install python MySQL dependency
-  apt:
-    name: python3-pymysql
-    state: present
-
-- name: Start and enable MySQL
-  service:
-    name: mysql
-    state: started
-    enabled: yes
-
-- name: Copy SQL setup script
-  copy:
-    src: mysql_setup.sql
-    dest: /tmp/mysql_setup.sql
-    mode: '0644'
-
-- name: Create database
-  community.mysql.mysql_db:
-    name: miracle_ice
-    state: present
-    login_unix_socket: /var/run/mysqld/mysqld.sock
-
-- name: Import SQL setup script
-  community.mysql.mysql_db:
-    name: miracle_ice
-    state: import
-    target: /tmp/mysql_setup.sql
-    force: false
-    login_unix_socket: /var/run/mysqld/mysqld.sock
-
-- name: Create Database user
-  community.mysql.mysql_user:
-    name: "{{ web_stack.mysql.app_user }}"
-    password: "{{ web_stack.mysql.app_password }}"
-    priv: "miracle_ice.*:SELECT,INSERT,UPDATE,DELETE"
-    host: 127.0.0.1
-    state: present
-    login_unix_socket: /var/run/mysqld/mysqld.sock
 
 - name: Restart Nginx 
   service: 
