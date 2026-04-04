@@ -1,6 +1,6 @@
 ---
 - name: Configure rsyslog clients
-  hosts: syslog_clients
+  hosts: syslog_clients_gray
   become: true
 
   tasks:
