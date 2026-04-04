@@ -41,7 +41,7 @@ INSERT IGNORE INTO players (team_id, player_num, position, player_name, age, hom
 (1,19,'RW','Eric Strobel',21,'Rochester, MN','Minnesota'),
 (1,20,'D','Bob Suter',22,'Madison, WI','Wisconsin'),
 (1,27,'LW','Phil Verchota',22,'Duluth, MN','Minnesota'),
-(1,15,'C','Mark Wells',21,'St. Clair Shores, MI','Bowling Green');
+(1,15,'C','Mark Wells',21,'St. Clair Shores, MI','Bowling Green') ON CONFLICT DO NOTHING;
 
 -- Soviet Union Players
 INSERT IGNORE INTO players (team_id, player_num, position, player_name, age, hometown, club_college) VALUES
@@ -64,4 +64,4 @@ INSERT IGNORE INTO players (team_id, player_num, position, player_name, age, hom
 (2,26,'LW','Aleksandr Skvortsov',25,'Gorky','Torpedo Gorky'),
 (2,12,'D','Sergei Starikov',21,'Chelyabinsk','CSKA Moscow'),
 (2,6,'D','Valeri Vasiliev (A)',30,'Gorky','Dynamo Moscow'),
-(2,22,'C','Viktor Zhluktov',26,'Inta','CSKA Moscow');
+(2,22,'C','Viktor Zhluktov',26,'Inta','CSKA Moscow') ON CONFLICT DO NOTHING;
