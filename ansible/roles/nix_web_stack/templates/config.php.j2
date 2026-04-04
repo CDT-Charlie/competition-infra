@@ -1,8 +1,8 @@
 <?php
 $host = "{{ db_host }}"; // So ansible can use correct host
 $db   = "miracle_ice";
-$user = "greyteam";
-$pass = "greyteam";
+$user = "{{ web_stack.mysql.app_user }}";
+$pass = "{{ web_stack.mysql.app_password }}";
 $charset = "utf8mb4";
 
 $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
