@@ -52,9 +52,6 @@
     name: "{{ web_stack.mysql.app_user }}"
     password: "{{ web_stack.mysql.app_password }}"
     priv: "miracle_ice.*:SELECT,INSERT,UPDATE,DELETE"
-    host: "{{ item }}"
+    host: "%"
     state: present
     login_unix_socket: /var/run/mysqld/mysqld.sock
-    loop: 
-      - "{{ webserver_host }}"
-      - "{{ scoring_host }}"
