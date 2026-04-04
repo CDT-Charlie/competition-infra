@@ -22,7 +22,7 @@
         content: |
           if $programname == 'scorecheck' then {
             *.* @@{{ hostvars[groups['syslog_central_blue1'][0]].ansible_host | default(groups['syslog_central_blue1'][0]) }}:514
-            *.* @@{{ hostvars[groups['syslog_central_blue2'][1]].ansible_host | default(groups['syslog_central_blue2'][1]) }}:514
+            *.* @@{{ hostvars[groups['syslog_central_blue2'][0]].ansible_host | default(groups['syslog_central_blue2'][0]) }}:514
             stop
           }
       notify: Restart rsyslog
