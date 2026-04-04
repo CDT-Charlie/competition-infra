@@ -1,0 +1,134 @@
+---
+-  name: Install and configure granfana
+   hosts: [server]
+   become: true
+
+#variables used to conifgure Grafana settings 
+   vars:
+     grafana_http_port: 3000
+     grafana_root_url: "http://{{ansible_host}}:{{grafana_http_port}}/"
+     grafana_admin_user: admin
+     grafana_admin_password: "Password123!" # change this!!
+
+#Mains task to install and configure grafana
+   tasks:
+    - name: Install prerequisite packages
+      apt:
+        name:
+          - apt-transport-https
+          - software-properties-common
+          - wget
+          - gnupg
+          - ufw
+        state: present
+        update_cache: true
+#add grafana GPG for package verfication
+    - name: Add Grafana GPG key
+      apt_key:
+        url: https://apt.grafana.com/gpg.key
+        state: present
+#add grafana Repo
+    - name: Add Grafana APT repository
+      apt_repository:
+        repo: "deb https://apt.grafana.com stable main"
+        state: present
+        filename: grafana
+#Install grafana Repository
+    - name: Install Grafana
+      apt:
+        name: grafana
+        state: present
+        update_cache: true
+
+#configure basic Grafana setting suck as port and domain
+    - name: Configure grafana.ini (minimal settings)
+      lineinfile:
+        path: /etc/grafana/grafana.ini
+        regexp: "^#?{{ item.key }}\\s*="
+        line: "{{ item.key }} = {{ item.value }}"
+        state: present
+      loop:
+        - { key: "http_port", value: "{{ grafana_http_port }}" }
+        - { key: "domain", value: "{{ grafana_domain }}" }
+        - { key: "root_url", value: "{{ grafana_root_url }}" }
+      notify: Restart grafana
+
+    - name: Open ports
+      ufw:
+        rule: allow
+        port: "{{item}}"
+        proto: tcp
+      loop: ['3000', '3100']
+#ensure Grafana service is enabled and running 
+    - name: Ensure Grafana is enabled and running
+      systemd:
+        name: grafana-server
+        enabled: true
+        state: started
+    - name: Creake Loki group
+      group:
+        name: loki
+        state: present
+- name: Create Loki user
+      user:
+        name: loki
+        group: loki
+        shell: /sbin/nologin
+        system: yes
+
+    - name: Download Loki binary
+      get_url:
+        url: "https://github.com/grafana/loki/releases/download/v2.9.4/loki-linux-amd64.zip"
+        dest: /tmp/loki.zip
+
+    - name: Unzip Loki binary
+      unarchive:
+        src: /tmp/loki.zip
+        dest: /usr/local/bin
+        remote_src: yes
+        mode: '0755'
+
+    - name: Create Loki configuration directory
+      file:
+        path: /etc/loki
+        state: directory
+        owner: loki
+        group: loki
+
+    - name: Download default Loki config
+      get_url:
+        url: "https://raw.githubusercontent.com/grafana/loki/main/cmd/loki/loki-local-config.yaml"
+        dest: /etc/loki/loki-config.yaml
+        owner: loki
+        group: loki
+
+    - name: Create Loki systemd service file
+      copy:
+        dest: /etc/systemd/system/loki.service
+        content: |
+          [Unit]
+          Description=Loki log aggregation system
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=loki
+          Group=loki
+          ExecStart=/usr/local/bin/loki-linux-amd64 -config.file=/etc/loki/loki-config.yaml
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Start and Enable Loki
+      systemd:
+        name: loki
+        state: started
+        enabled: true
+        daemon_reload: yes
+
+   handlers:
+    - name: Restart grafana
+      systemd:
+        name: grafana-server
+        state: restarted

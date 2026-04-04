@@ -1,0 +1,103 @@
+---
+- name: Deploy Monitoring Grafana Agents
+  hosts: agents
+  become: true
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Ensure keyrings directory exists
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Download Grafana GPG key
+      shell: |
+        curl -fsSL https://apt.grafana.com/gpg.key | gpg --dearmor --yes -o /etc/apt/keyrings/grafana.gpg
+      args:
+        creates: /etc/apt/keyrings/grafana.gpg
+
+    - name: Install Node Exporter and Alloy
+      apt:
+        name: [prometheus-node-exporter, alloy]
+        state: present
+        update_cache: yes
+
+    - name: Ensure Node Exporter is started and enable
+      systemd:
+        name: prometheus-node-exporter
+        state: started
+        enabled: true
+
+    - name: Open Firewall fro Metrics ( Port 9100)
+      ufw:
+        rule: allow
+        port: '9100'
+        proto: tcp
+
+    - name: Add Grafana APT repository
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main"
+        state: present
+        filename: grafana
+        update_cache: yes
+
+    - name: ADD Alloy user to necessary groups
+      user:
+        name: alloy
+        groups: adm,systemd-journal
+        append: yes
+
+    - name: Configure Alloy to send logs
+      copy:
+        dest: /etc/alloy/config.alloy
+        content: |
+          logging {
+            level = "info"
+          }
+
+          loki.write "local" {
+            endpoint {
+              url = "http://{{groups['blue'+ group_names[0][-1] + '_server'][0] }}:3100/loki/api/v1/push"
+            }
+          }
+
+          loki.relabel "journal" {
+            forward_to = [loki.write.local.receiver]
+            rule {
+              source_labels = ["__journal__systemd_unit"]
+              target_label  = "unit"
+            }
+            rule{
+              source_labels = ["__journal__hostname"]
+              target_label = "hostname"
+            }
+          }
+
+          loki.source.journal "read" {
+            forward_to = [loki.relabel.journal.receiver]
+          }
+
+          local.file_match "mysql_logs" {
+            path_targets = [
+              { "job" = "mysql", "type" = "error", "__path__" = "/var/log/mysql/error.log" },
+              { "job" = "mysql", "type" = "query", "__path__" = "/var/log/mysql/query.log" },
+            ]
+          }
+
+          loki.source.file "mysql" {
+            targets    = local.file_match.mysql_logs.targets
+            forward_to = [loki.write.local.receiver]
+          }
+
+
+    - name: Restart Alloy
+      systemd:
+        name: alloy
+        state: restarted
+        enabled: true
+        daemon_reload: yes
