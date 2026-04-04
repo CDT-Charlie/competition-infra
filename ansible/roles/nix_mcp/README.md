@@ -50,7 +50,6 @@ This directory is the **Ansible role** `nix_mcp`. Deployment is driven from the 
 |------|---------|
 | [`tasks/main.yml`](tasks/main.yml) | Installs deps, venv (uv on 20.04 / apt on 22.04+), deploys `ref_review_mcp.py`, env file, launcher script. |
 | [`files/uv-setup.sh`](files/uv-setup.sh) | Ubuntu 20.04 only: `uv python install`, `uv venv`, `uv pip install` (env vars set by Ansible). |
-| [`files/deploy.yml`](files/deploy.yml) | **Example only** — pattern “`script:` + `systemd`”; real deploy is this role via [`site.yml`](../../site.yml). |
 | [`files/ref_review_mcp.py`](files/ref_review_mcp.py) | MCP server (FastMCP, stdio). |
 | [`templates/ref_review_mcp.env.j2`](templates/ref_review_mcp.env.j2) | `/etc/default`-style env consumed by the launcher. |
 | [`templates/run-ref-review-mcp.sh.j2`](templates/run-ref-review-mcp.sh.j2) | Sources env, `exec`s venv Python + `ref_review_mcp.py`. |
@@ -74,7 +73,6 @@ Primary definitions live in [`group_vars/linux.yml`](../../group_vars/linux.yml)
 | `pip_packages` | **22.04+:** passed to `ansible.builtin.pip`. **20.04:** joined and passed to **`uv pip install`** by [`files/uv-setup.sh`](files/uv-setup.sh). |
 | `uv_release` | Ubuntu 20.04: Astral **uv** version tag for the GitHub tarball (default `0.6.14`). Bump for fixes; must match a published **`uv-<triple>.tar.gz`**. |
 | `uv_python` | Ubuntu 20.04: managed CPython version for **`uv python install`** / **`uv venv`** (default `3.10`). |
-| `cleanup_legacy_focal_apt` | Ubuntu 20.04: remove **`ref-review-mcp-universe.list`** and **`*deadsnakes*`** files under **`/etc/apt/sources.list.d`** from older role/manual attempts (default true). |
 | `file_owner` | Install tree owner: domain user (`greyteam@realm`). |
 | `file_group` | Install tree group: domain user’s **primary group** from NSS (default `domain users@realm`), not the UPN—`chgrp` cannot use `greyteam@realm`. Override if `id greyteam@realm` shows a different group. |
 | `env_file` | Path written by template (default `/etc/default/ref_review_mcp`). |

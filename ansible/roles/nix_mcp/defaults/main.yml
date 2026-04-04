@@ -12,11 +12,9 @@ ref_review_mcp:
   poison_network: "10.100.1.0/24"
   pip_packages:
     - "mcp>=1.2.0"
-  # Ubuntu 20.04: system python3 is 3.8; use Astral uv + standalone CPython (no deadsnakes).
+  # Ubuntu 20.04: system python3 is 3.8; Astral uv + standalone CPython (files/uv-setup.sh).
   uv_release: "0.6.14"
   uv_python: "3.10"
-  # Remove prior role apt snippets (Universe fallback list, deadsnakes .list) before apt update.
-  cleanup_legacy_focal_apt: true
   file_owner: "greyteam@lakeplacid.local"
   file_group: "domain users@lakeplacid.local"
   env_file: "/etc/default/ref_review_mcp"

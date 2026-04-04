@@ -56,7 +56,6 @@ ref_review_mcp:
   # 20.04: uv + standalone Python; see nix_mcp README.
   uv_release: "0.6.14"
   uv_python: "3.10"
-  cleanup_legacy_focal_apt: true
   # Owner = domain user; group = primary group from NSS (id / getent), not the UPN (chgrp cannot use user@realm).
   file_owner: "greyteam@{{ ad_domain }}"
   file_group: "domain users@{{ ad_domain }}"
