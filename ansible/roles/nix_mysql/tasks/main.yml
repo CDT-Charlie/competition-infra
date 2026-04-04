@@ -52,15 +52,6 @@
     name: "{{ web_stack.mysql.app_user }}"
     password: "{{ web_stack.mysql.app_password }}"
     priv: "miracle_ice.*:SELECT,INSERT,UPDATE,DELETE"
-    host: "{{ webserver_host }}"
+    host: "%"
     state: present
     login_unix_socket: /var/run/mysqld/mysqld.sock
-
-- name: Allow scoring server access
-  community.mysql.mysql_user:
-  name: "{{ web_stack.mysql.app_user }}"
-  password: "{{ web_stack.mysql.app_password }}"
-  priv: "miracle_ice.*:SELECT,INSERT,UPDATE,DELETE"
-  host: "{{ scoring_host }}"
-  state: present
-  login_unix_socket: /var/run/mysqld/mysqld.sock
