@@ -13,7 +13,7 @@ This directory is the **Ansible role** `nix_mcp`. Deployment is driven from the 
 | Requirement | Notes |
 |---------------|--------|
 | **Target hosts** | Inventory group **`mcp_hosts`**: `blue1-cross-check`, `blue2-cross-check` (see [`inventory.yml`](../../inventory.yml)). |
-| **OS** | Ubuntu 20.04, 22.04, or 24.04 (role uses `apt`). **20.04:** the role installs **`python3.10`** + **`python3.10-venv`** because PyPI **`mcp`** requires **Python ≥3.10**. On Focal, **`python3.10` is not in the `main` pocket**; the role enables **Universe** and (by default) the **deadsnakes PPA** so `apt` can see the packages. Set `ref_review_mcp.focal_use_deadsnakes_ppa: false` if Launchpad is blocked (you must then have Universe + a mirror that ships `python3.10`). |
+| **OS** | Ubuntu 20.04, 22.04, or 24.04. **20.04:** PyPI **`mcp`** needs **Python ≥3.10**; the role uses **[Astral uv](https://docs.astral.sh/uv/)** (pinned GitHub release tarball) plus [`files/uv-setup.sh`](files/uv-setup.sh) to install a **standalone CPython** and a venv under **`ref_review_mcp.install_dir`** — no deadsnakes / no system `python3.10` packages. **22.04+:** `python3` from apt and a normal `venv`. Targets need outbound HTTPS to **GitHub** (uv + Python builds) and **PyPI** unless you mirror. |
 | **Active Directory / SSSD** | Domain user **`greyteam@lakeplacid.local`** (from `ad_domain` in [`group_vars/all.yml`](../../group_vars/all.yml)) must exist on cross-check and peers (typically after **`nix_base`** domain join). |
 | **Peer Linux VMs** | Other scored Linux boxes (hat-trick, triple-deke, etc.) must be joined and reachable from cross-check over SSH. |
 | **Network** | MCP only allows `target_ip` inside `REF_REVIEW_ALLOWED_SUBNETS` (see variables below). |
@@ -36,10 +36,10 @@ This directory is the **Ansible role** `nix_mcp`. Deployment is driven from the 
 
 ### Python on the target (installed by the role)
 
-- `python3`, `python3-venv`, `python3-pip`, `openssh-client`
-- **Ubuntu 20.04 only:** `python3.10`, `python3.10-venv` — the venv is created with **`python3.10 -m venv`** so `pip install mcp` can resolve wheels.
-- **22.04 / 24.04:** default `python3` is already ≥3.10; venv uses `python3`.
-- If a previous run created `/opt/ref_review_mcp/venv` with Python 3.8, the role **removes** that venv when it detects `sys.version_info < (3, 10)` and recreates it.
+- **All:** `curl`, `ca-certificates`, `openssh-client`.
+- **Ubuntu 20.04:** `uv` binary under **`{{ install_dir }}/uv/root`**, managed Python under **`{{ install_dir }}/uv/python`**, cache/data under **`uv/cache`** and **`uv/data`**. [`files/uv-setup.sh`](files/uv-setup.sh) runs **`uv python install`**, **`uv venv`**, **`uv pip install`** for **`ref_review_mcp.pip_packages`**.
+- **22.04 / 24.04:** `python3`, `python3-venv`, `python3-pip`; venv via **`python3 -m venv`** and **`ansible.builtin.pip`**.
+- If an old venv was built with Python &lt;3.10, the role **removes** it and rebuilds.
 - PyPI package **`mcp`** (version constrained in variables, e.g. `mcp>=1.2.0`).
 
 ---
@@ -48,7 +48,9 @@ This directory is the **Ansible role** `nix_mcp`. Deployment is driven from the 
 
 | Path | Purpose |
 |------|---------|
-| [`tasks/main.yml`](tasks/main.yml) | Installs deps, venv, MCP SDK, deploys `ref_review_mcp.py`, env file, launcher script. |
+| [`tasks/main.yml`](tasks/main.yml) | Installs deps, venv (uv on 20.04 / apt on 22.04+), deploys `ref_review_mcp.py`, env file, launcher script. |
+| [`files/uv-setup.sh`](files/uv-setup.sh) | Ubuntu 20.04 only: `uv python install`, `uv venv`, `uv pip install` (env vars set by Ansible). |
+| [`files/deploy.yml`](files/deploy.yml) | **Example only** — pattern “`script:` + `systemd`”; real deploy is this role via [`site.yml`](../../site.yml). |
 | [`files/ref_review_mcp.py`](files/ref_review_mcp.py) | MCP server (FastMCP, stdio). |
 | [`templates/ref_review_mcp.env.j2`](templates/ref_review_mcp.env.j2) | `/etc/default`-style env consumed by the launcher. |
 | [`templates/run-ref-review-mcp.sh.j2`](templates/run-ref-review-mcp.sh.j2) | Sources env, `exec`s venv Python + `ref_review_mcp.py`. |
@@ -69,11 +71,10 @@ Primary definitions live in [`group_vars/linux.yml`](../../group_vars/linux.yml)
 | `ssh_connect_timeout` | SSH connect timeout (seconds). |
 | `allowed_subnets` | Comma-joined into **`REF_REVIEW_ALLOWED_SUBNETS`**; targets outside these are rejected. |
 | `poison_network` | CIDR(s) for “false signal” /etc/hosts checks (**`REF_REVIEW_POISON_CIDR`**). |
-| `pip_packages` | List passed to `ansible.builtin.pip` inside the venv. |
-| `focal_enable_universe` | Ubuntu 20.04: run `add-apt-repository universe` (default true). Used when **`focal_use_deadsnakes_ppa`** is false. |
-| `focal_use_deadsnakes_ppa` | Ubuntu 20.04: when true (default), the role runs [`files/install_python310_focal.sh`](files/install_python310_focal.sh) — `software-properties-common`, Universe, deadsnakes PPA, rewrite to **`ppa.launchpadcontent.net`**, then **`apt-get install`** `python3.10`, `python3.10-venv`, `python3.10-distutils`. Set false on airgapped labs and rely on Universe-only apt (may lack `python3.10` on some mirrors). |
-| `focal_universe_list_fallback` | When deadsnakes is **disabled**: if `add-apt-repository` is insufficient, write **`/etc/apt/sources.list.d/ref-review-mcp-universe.list`** (default true). |
-| `focal_universe_mirror` | Base URL for that `.list` line (default `http://archive.ubuntu.com/ubuntu`); set to your **same mirror** as existing `deb` lines (e.g. `http://nova.clouds.archive.ubuntu.com/ubuntu`) if `archive.ubuntu.com` is unreachable. |
+| `pip_packages` | **22.04+:** passed to `ansible.builtin.pip`. **20.04:** joined and passed to **`uv pip install`** by [`files/uv-setup.sh`](files/uv-setup.sh). |
+| `uv_release` | Ubuntu 20.04: Astral **uv** version tag for the GitHub tarball (default `0.6.14`). Bump for fixes; must match a published **`uv-<triple>.tar.gz`**. |
+| `uv_python` | Ubuntu 20.04: managed CPython version for **`uv python install`** / **`uv venv`** (default `3.10`). |
+| `cleanup_legacy_focal_apt` | Ubuntu 20.04: remove **`ref-review-mcp-universe.list`** and **`*deadsnakes*`** files under **`/etc/apt/sources.list.d`** from older role/manual attempts (default true). |
 | `file_owner` | Install tree owner: domain user (`greyteam@realm`). |
 | `file_group` | Install tree group: domain user’s **primary group** from NSS (default `domain users@realm`), not the UPN—`chgrp` cannot use `greyteam@realm`. Override if `id greyteam@realm` shows a different group. |
 | `env_file` | Path written by template (default `/etc/default/ref_review_mcp`). |
@@ -270,7 +271,8 @@ The process waits on stdin for MCP JSON-RPC. For a quick protocol check, use **[
 | MCP SSH always fails | `REF_REVIEW_SSH_IDENTITY_FILE` path wrong, file missing, or permissions; run section **B**. |
 | `sudo` NAT table empty / unreadable | Peers may need passwordless sudo for `greyteam` to read `iptables -t nat -L -n`, or accept degraded NAT visibility (tool reports that). |
 | Open WebUI shows no tools | stdio command wrong, crash on start (check venv `mcp` install), or wrong user. |
-| **`No package matching 'python3.10'`** on 20.04 | Only **`main`** may be enabled, or your mirror omits Universe. Pull the latest **`nix_mcp`** role: it adds a **`sources.list.d`** Universe line if `add-apt-repository` fails, runs **`apt update`**, then preflights with **`apt-cache madison`**. Set **`ref_review_mcp.focal_universe_mirror`** to the **same mirror host** as your existing `deb` lines (e.g. OpenStack often uses `http://nova.clouds.archive.ubuntu.com/ubuntu`). If Launchpad is allowed, set **`focal_use_deadsnakes_ppa: true`**. Easiest long-term: **22.04+** images for `mcp_hosts`. |
+| **uv / Python download fails on 20.04** | Host must reach **GitHub** (`github.com`, `objects.githubusercontent.com` or your proxy allowlist). Check disk space under **`ref_review_mcp.install_dir`**. Bump **`uv_release`** if the tarball URL 404s. |
+| **uv pip install / PyPI errors** | Outbound HTTPS to **PyPI**; proxy `HTTP(S)_PROXY` may need to be set for the root task environment if you add that later. |
 
 ---
 

@@ -1,23 +1,22 @@
----
-# Ref Review MCP — defaults (override via group_vars/linux.yml → ref_review_mcp).
-ref_review_mcp:
-  install_dir: "/opt/ref_review_mcp"
-  ssh_login: "greyteam@lakeplacid.local"
-  ssh_home: "/home/greyteam@lakeplacid.local"
-  ssh_identity_file: "/home/greyteam@lakeplacid.local/.ssh/id_ref_review_mcp"
-  ssh_connect_timeout: 15
-  allowed_subnets:
-    - "10.100.2.0/24"
-    - "10.100.3.0/24"
-  poison_network: "10.100.1.0/24"
-  pip_packages:
-    - "mcp>=1.2.0"
-  # Ubuntu 20.04: python3.10 is not in main; enable Universe and/or deadsnakes so apt can install it.
-  focal_enable_universe: true
-  focal_use_deadsnakes_ppa: true
-  # If add-apt-repository universe fails or is a no-op, write this pocket via sources.list.d (override mirror for airgap).
-  focal_universe_list_fallback: true
-  focal_universe_mirror: "http://archive.ubuntu.com/ubuntu"
-  file_owner: "greyteam@lakeplacid.local"
-  file_group: "domain users@lakeplacid.local"
-  env_file: "/etc/default/ref_review_mcp"
+---
+# Ref Review MCP — defaults (override via group_vars/linux.yml → ref_review_mcp).
+ref_review_mcp:
+  install_dir: "/opt/ref_review_mcp"
+  ssh_login: "greyteam@lakeplacid.local"
+  ssh_home: "/home/greyteam@lakeplacid.local"
+  ssh_identity_file: "/home/greyteam@lakeplacid.local/.ssh/id_ref_review_mcp"
+  ssh_connect_timeout: 15
+  allowed_subnets:
+    - "10.100.2.0/24"
+    - "10.100.3.0/24"
+  poison_network: "10.100.1.0/24"
+  pip_packages:
+    - "mcp>=1.2.0"
+  # Ubuntu 20.04: system python3 is 3.8; use Astral uv + standalone CPython (no deadsnakes).
+  uv_release: "0.6.14"
+  uv_python: "3.10"
+  # Remove prior role apt snippets (Universe fallback list, deadsnakes .list) before apt update.
+  cleanup_legacy_focal_apt: true
+  file_owner: "greyteam@lakeplacid.local"
+  file_group: "domain users@lakeplacid.local"
+  env_file: "/etc/default/ref_review_mcp"
