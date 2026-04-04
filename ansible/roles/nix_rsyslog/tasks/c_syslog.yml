@@ -25,8 +25,8 @@
       file:
         path: /var/log/remote # all the forwarded logs will be aggregated here
         state: directory
-        owner: root
-        group: root
+        owner: syslog
+        group: adm
         mode: '0755'
 
     - name: Configure rsyslog server listeners # This rsyslog configuration ONLY supports TCP
@@ -36,6 +36,7 @@
         content: |
           module(load="imtcp")
           input(type="imtcp" port="514")
+          module(load="builtin:omfile" CreateDirs="on")
           template(name="RemoteLogs" type="string" string="/var/log/remote/%HOSTNAME%/%PROGRAMNAME%.log")
           *.* ?RemoteLogs
           & stop
@@ -49,8 +50,8 @@
     - name: Automate log rotation # Logs are rotated and compressed every hour if main log file size exceeds 100KB
       copy:
         dest: /etc/logrotate.d/rsyslog-remote
-        owner: root
-        group: root
+        owner: syslog
+        group: adm
         mode: '0644'
         content: |
           /var/log/remote/*/*.log {
