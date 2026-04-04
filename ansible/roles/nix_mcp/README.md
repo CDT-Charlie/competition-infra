@@ -13,7 +13,7 @@ This directory is the **Ansible role** `nix_mcp`. Deployment is driven from the 
 | Requirement | Notes |
 |---------------|--------|
 | **Target hosts** | Inventory group **`mcp_hosts`**: `blue1-cross-check`, `blue2-cross-check` (see [`inventory.yml`](../../inventory.yml)). |
-| **OS** | Ubuntu 20.04, 22.04, or 24.04 (role uses `apt`). |
+| **OS** | Ubuntu 20.04, 22.04, or 24.04 (role uses `apt`). **20.04:** the role installs **`python3.10`** + **`python3.10-venv`** (from Universe) because PyPI **`mcp`** requires **Python ≥3.10**; default `python3` on 20.04 is 3.8 and cannot install `mcp`. |
 | **Active Directory / SSSD** | Domain user **`greyteam@lakeplacid.local`** (from `ad_domain` in [`group_vars/all.yml`](../../group_vars/all.yml)) must exist on cross-check and peers (typically after **`nix_base`** domain join). |
 | **Peer Linux VMs** | Other scored Linux boxes (hat-trick, triple-deke, etc.) must be joined and reachable from cross-check over SSH. |
 | **Network** | MCP only allows `target_ip` inside `REF_REVIEW_ALLOWED_SUBNETS` (see variables below). |
@@ -37,7 +37,10 @@ This directory is the **Ansible role** `nix_mcp`. Deployment is driven from the 
 ### Python on the target (installed by the role)
 
 - `python3`, `python3-venv`, `python3-pip`, `openssh-client`
-- PyPI package **`mcp`** (version constrained in variables, e.g. `mcp>=1.2.0`)
+- **Ubuntu 20.04 only:** `python3.10`, `python3.10-venv` — the venv is created with **`python3.10 -m venv`** so `pip install mcp` can resolve wheels.
+- **22.04 / 24.04:** default `python3` is already ≥3.10; venv uses `python3`.
+- If a previous run created `/opt/ref_review_mcp/venv` with Python 3.8, the role **removes** that venv when it detects `sys.version_info < (3, 10)` and recreates it.
+- PyPI package **`mcp`** (version constrained in variables, e.g. `mcp>=1.2.0`).
 
 ---
 

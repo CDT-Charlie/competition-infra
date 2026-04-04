@@ -1,6 +1,7 @@
 ---
 # Ref Review MCP — Grey Team read-only tampering inspector (stdio MCP + SSH to Blue Linux).
 # Requires domain greyteam (nix_base / realm permit). MCP SSH keys: deploy_greyteam_mcp_ssh.yml + scripts/deploy-greyteam-mcp-ssh.sh.
+# PyPI package "mcp" requires Python >=3.10; Ubuntu 20.04 default python3 is 3.8 — see python3.10 tasks below.
 
 - name: Install Python venv, pip, and SSH client for Ref Review MCP
   ansible.builtin.apt:
@@ -12,6 +13,42 @@
     state: present
     update_cache: true
 
+- name: Install Python 3.10 for venv on Ubuntu 20.04 (MCP SDK needs >=3.10)
+  ansible.builtin.apt:
+    name:
+      - python3.10
+      - python3.10-venv
+    state: present
+    update_cache: true
+  when:
+    - ansible_distribution == "Ubuntu"
+    - ansible_distribution_version == "20.04"
+
+- name: Set Ref Review venv Python executable
+  ansible.builtin.set_fact:
+    ref_review_mcp_venv_python: "{{ 'python3.10' if (ansible_distribution == 'Ubuntu' and ansible_distribution_version == '20.04') else 'python3' }}"
+
+- name: Stat existing Ref Review venv interpreter
+  ansible.builtin.stat:
+    path: "{{ ref_review_mcp.install_dir }}/venv/bin/python"
+  register: ref_review_mcp_venv_stat
+
+- name: Check venv Python is MCP-compatible (>=3.10)
+  ansible.builtin.command:
+    cmd: "{{ ref_review_mcp.install_dir }}/venv/bin/python -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'"
+  register: ref_review_mcp_venv_ok
+  changed_when: false
+  failed_when: false
+  when: ref_review_mcp_venv_stat.stat.exists | default(false)
+
+- name: Remove incompatible Ref Review venv (e.g. built with Python 3.8 on 20.04)
+  ansible.builtin.file:
+    path: "{{ ref_review_mcp.install_dir }}/venv"
+    state: absent
+  when:
+    - ref_review_mcp_venv_stat.stat.exists | default(false)
+    - ref_review_mcp_venv_ok.rc | default(1) != 0
+
 - name: Ensure Ref Review install directory exists
   ansible.builtin.file:
     path: "{{ ref_review_mcp.install_dir }}"
@@ -22,7 +59,7 @@
 
 - name: Create Python venv for Ref Review MCP
   ansible.builtin.command:
-    cmd: python3 -m venv "{{ ref_review_mcp.install_dir }}/venv"
+    cmd: "{{ ref_review_mcp_venv_python }} -m venv {{ ref_review_mcp.install_dir }}/venv"
     creates: "{{ ref_review_mcp.install_dir }}/venv/bin/python"
 
 - name: Install / upgrade pip in venv
