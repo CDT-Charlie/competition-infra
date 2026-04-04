@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS teams (
 
 INSERT IGNORE INTO teams (team_name) VALUES ('United States'), ('Soviet Union');
 
-CREATE TABLE players (
+CREATE TABLE IF NOT EXISTS players (
     id INT AUTO_INCREMENT PRIMARY KEY, 
     team_id INT NOT NULL,
     player_num INT NOT NULL,
@@ -44,7 +44,7 @@ INSERT IGNORE INTO players (team_id, player_num, position, player_name, age, hom
 (1,15,'C','Mark Wells',21,'St. Clair Shores, MI','Bowling Green');
 
 -- Soviet Union Players
-INSERT INTO players (team_id, player_num, position, player_name, age, hometown, club_college) VALUES
+INSERT IGNORE INTO players (team_id, player_num, position, player_name, age, hometown, club_college) VALUES
 (2,20,'G','Vladislav Tretiak',27,'Orudyevo','CSKA Moscow'),
 (2,2,'D','Viacheslav Fetisov',21,'Moscow','CSKA Moscow'),
 (2,7,'D','Alexei Kasatonov',20,'Leningrad','CSKA Moscow'),
