@@ -1,0 +1,73 @@
+---
+# Pre-create POSIX home directories for every domain user that is allowed to log in
+# (same roster as realm permit in nix_base: admin + local + blue_shared_users).
+#
+# Run after Linux hosts are joined to AD (site.yml --tags domain_stack or full site).
+# Uses bootstrap (cyberrange) + sudo; resolves each user via SSSD (getent) and creates
+# /home/... with correct uid/gid — no per-user passwords or SSH loops.
+#
+#   ansible-playbook -i inventory.yml precreate_domain_homes.yml
+#
+# Limit to one team’s Linux hosts:
+#   ansible-playbook -i inventory.yml precreate_domain_homes.yml --limit blue_team_1_linux
+
+- name: Pre-create domain user home directories on Linux members
+  hosts: blue_linux
+  gather_facts: false
+  become: true
+  tags: [precreate_homes, domain_homes]
+  vars:
+    ansible_connection: ssh
+    ansible_user: "{{ bootstrap_user.username }}"
+    ansible_password: "{{ bootstrap_user.password }}"
+    ansible_become_password: "{{ bootstrap_user.password }}"
+
+  pre_tasks:
+    - name: Build SAM account list (matches realm permit roster)
+      ansible.builtin.set_fact:
+        nix_precreate_homes_sam_accounts: >-
+          {{
+            (
+              (blue_team_admin_users | default([]))
+              + (blue_team_local_users | default([]))
+              + (blue_shared_users | default([]) | map(attribute='name') | list)
+              + (nix_precreate_homes_extra | default([]))
+            ) | unique | list
+          }}
+
+  tasks:
+    - name: Ensure pam_mkhomedir-friendly home exists for each permitted domain user
+      ansible.builtin.shell: |
+        set -euo pipefail
+        principal="{{ item }}@{{ ad_domain }}"
+        line="$(getent passwd "$principal" || true)"
+        if [ -z "$line" ]; then
+          echo "getent passwd '$principal' failed — user not visible to SSSD on this host." >&2
+          exit 1
+        fi
+        uid=$(echo "$line" | cut -d: -f3)
+        gid=$(echo "$line" | cut -d: -f4)
+        home=$(echo "$line" | cut -d: -f6)
+        if [ -z "$home" ] || [ "$home" = "/" ]; then
+          echo "invalid home in passwd for $principal: '$home'" >&2
+          exit 1
+        fi
+        if [ -d "$home" ]; then
+          echo "unchanged $home"
+          exit 0
+        fi
+        mkdir -p "$home"
+        if [ -d /etc/skel ] && [ "$(ls -A /etc/skel 2>/dev/null)" ]; then
+          cp -a /etc/skel/. "$home"/
+        fi
+        chown -R "$uid:$gid" "$home"
+        chmod 0755 "$home" 2>/dev/null || true
+        echo "created $home"
+      args:
+        executable: /bin/bash
+      loop: "{{ nix_precreate_homes_sam_accounts }}"
+      loop_control:
+        label: "{{ item }}@{{ ad_domain }}"
+      register: nix_precreate_homes_result
+      # Per-iteration stdout from the shell task (not the aggregated register).
+      changed_when: "'created ' in (stdout | default(''))"

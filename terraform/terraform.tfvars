@@ -136,6 +136,13 @@ instances = {
     image = "DebianBookworm12"
   }
 
+  "scoring" = {
+    network = "admin"
+    ip = "10.100.0.30"
+    flavor = "turbolarge"
+    image = "DebianBookworm12"
+  }
+
   # "blue1-win10-test" = {
   #   network = "blue1"
   #   ip      = "10.100.2.4"
