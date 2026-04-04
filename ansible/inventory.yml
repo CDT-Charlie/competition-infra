@@ -77,8 +77,10 @@ all:
       hosts:
         blue1-triple-deke:
           webserver_host: 10.100.2.4
+          scoring_host: 10.100.0.20
         blue2-triple-deke:
           webserver_host: 10.100.3.4
+          scoring_host: 10.100.0.20
 
     mail:
       hosts:
