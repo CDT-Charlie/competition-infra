@@ -8,15 +8,15 @@
     name: 
       - nginx
       - mysql-server
-      - php8.1-fpm
-      - php8.1-mysql
+      - php-fpm
+      - php-mysql
     state: present
     update_cache: yes
 
 # PHP
 - name: Start and enable PHP-FPM
   service:
-    name: php8.1-fpm
+    name: php-fpm
     state: started
     enabled: yes
 
