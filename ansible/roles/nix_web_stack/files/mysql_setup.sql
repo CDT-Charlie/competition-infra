@@ -1,12 +1,12 @@
 CREATE DATABASE IF NOT EXISTS miracle_ice; 
 USE miracle_ice;
 
-CREATE TABLE teams (
+CREATE TABLE IF NOT EXISTS teams (
     id INT AUTO_INCREMENT PRIMARY KEY,
     team_name VARCHAR(255) NOT NULL
 );
 
-INSERT INTO teams (team_name) VALUES ('United States'), ('Soviet Union');
+INSERT IGNORE INTO teams (team_name) VALUES ('United States'), ('Soviet Union');
 
 CREATE TABLE players (
     id INT AUTO_INCREMENT PRIMARY KEY, 
@@ -21,7 +21,7 @@ CREATE TABLE players (
 ); 
 
 -- United States Players
-INSERT INTO players (team_id, player_num, position, player_name, age, hometown, club_college) VALUES
+INSERT IGNORE INTO players (team_id, player_num, position, player_name, age, hometown, club_college) VALUES
 (1,30,'G','Jim Craig',22,'North Easton, MA','Boston U.'),
 (1,3,'D','Ken Morrow',23,'Flint, MI','Bowling Green'),
 (1,5,'D','Mike Ramsey',19,'Minneapolis, MN','Minnesota'),
