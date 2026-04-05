@@ -32,42 +32,41 @@
         type: allow
         state: present
     
-    - name: Deploy index.html
-      ansible.windows.win_copy:
-        content: |
-          <!DOCTYPE html>
-          <html>
-          <head>
-              <title>Miracle on Ice</title>
-              <style>
-                  body { font-family: sans-serif; background-color: #002868; color: white; text-align: center; }
-                  .container { padding: 50px; }
-                  h1 { color: #BF0A30; font-size: 3em; text-shadow: 2px 2px #fff; }
-                  p { font-size: 1.2em; line-height: 1.6; }
-              </style>
-          </head>
-          <body>
-              <div class="container">
-                  <h1>"Do you believe in miracles? YES!"</h1>
-                  <h2>February 22, 1980 - Lake Placid, NY</h2>
-                  <p>
-                      In one of the greatest upsets in sports history, the young United States 
-                      Olympic hockey team defeated the defending gold-medal Soviet Union team 
-                      4-3 during the medal round of the 1980 Winter Olympics.
-                  </p>
-                  <p>Managed by Ansible on IIS</p>
-              </div>
-          </body>
-          </html>
-        dest: C:\inetpub\wwroot\miracle\index.html
-
-    - name: Setup IIS Website
-      community.windows.win_iis_website:
-        name: "MiracleOnIcOnline"
+    - name: Create miracle directory
+      win_file: 
+        path: C:\inetpub\wwwroot\miracle
+        state: directory
+        
+    - name: Ensure IIS is started
+      win_service:
+        name: W3SVC
         state: started
-        port: 80
-        physical_path: C:\inetpub\wwroot\miracle
-      register: website_status
+        start_mode: auto
+        
+    - name: Ensure Default Web started
+      community.windows.win_iis_website:
+        name: "Default Web Site"
+        state: started
+
+    - name: Create IIS Link
+      win_shell: |
+        Import-Module WebAdministration
+        if (!(Get-WebApplication -Site "Default Web Site" -Name "miracle")) {
+            New-WebApplication -Site "Default Web Site" -name "miracle" -PhysicalPath "C:\inetpub\wwwroot\miracle"
+        }
+
+    - name: Create index.html with powershell
+      win_shell: |
+        $html = @"
+        <html>
+        <body>
+          <h1>Miracle on Ice</h1>
+          <p>Service is UP and Running.</p>
+        </body>
+        </html>
+        "@
+        $html | Out-File -FilePath "C:\inetpub\wwwroot\miracle\index.html" -Encoding utf8
+
 
 
 
