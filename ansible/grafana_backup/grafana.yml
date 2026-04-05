@@ -6,7 +6,7 @@
 #variables used to conifgure Grafana settings 
    vars:
      grafana_http_port: 3000
-     grafana_root_url: "http://{{ansible_host}}:{{grafana_http_port}}/"
+     grafana_root_url: "http://{{ inventory_hostname }}:{{grafana_http_port}}/"
      grafana_admin_user: admin
      grafana_admin_password: "Password123!" # change this!!
 
@@ -22,15 +22,16 @@
           - ufw
         state: present
         update_cache: true
-#add grafana GPG for package verfication
-    - name: Add Grafana GPG key
-      apt_key:
-        url: https://apt.grafana.com/gpg.key
-        state: present
-#add grafana Repo
+
+    - name: Add Grafana GPG key (Shell version)
+      shell: |
+        curl -fsSL https://apt.grafana.com/gpg.key | gpg --dearmor --yes -o /etc/apt/keyrings/grafana.gpg
+      args:
+        creates: /etc/apt/keyrings/grafana.gpg
+
     - name: Add Grafana APT repository
       apt_repository:
-        repo: "deb https://apt.grafana.com stable main"
+        repo: "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main"
         state: present
         filename: grafana
 #Install grafana Repository
@@ -49,7 +50,7 @@
         state: present
       loop:
         - { key: "http_port", value: "{{ grafana_http_port }}" }
-        - { key: "domain", value: "{{ grafana_domain }}" }
+        - { key: "domain", value: "{{ inventory_hostname}}" }
         - { key: "root_url", value: "{{ grafana_root_url }}" }
       notify: Restart grafana
 
@@ -69,17 +70,30 @@
       group:
         name: loki
         state: present
-- name: Create Loki user
+    - name: Create Loki user
       user:
         name: loki
         group: loki
         shell: /sbin/nologin
         system: yes
 
-    - name: Download Loki binary
-      get_url:
-        url: "https://github.com/grafana/loki/releases/download/v2.9.4/loki-linux-amd64.zip"
-        dest: /tmp/loki.zip
+    - name: Download Loki binary (Shell version)
+      shell: |
+        curl -L "https://github.com/grafana/loki/releases/download/v2.9.4/loki-linux-amd64.zip" -o /tmp/loki.zip
+      args:
+        creates: /tmp/loki.zip
+
+    - name: Create Loki Config Directory
+      file:
+        path: /etc/loki
+        state: directory
+        mode: '0755'
+
+    - name: Download default Loki config (Shell version)
+      shell: |
+        curl -L "https://raw.githubusercontent.com/grafana/loki/main/cmd/loki/loki-local-config.yaml" -o /etc/loki/loki-config.yaml
+      args:
+        creates: /etc/loki/loki-config.yaml
 
     - name: Unzip Loki binary
       unarchive:
@@ -87,20 +101,6 @@
         dest: /usr/local/bin
         remote_src: yes
         mode: '0755'
-
-    - name: Create Loki configuration directory
-      file:
-        path: /etc/loki
-        state: directory
-        owner: loki
-        group: loki
-
-    - name: Download default Loki config
-      get_url:
-        url: "https://raw.githubusercontent.com/grafana/loki/main/cmd/loki/loki-local-config.yaml"
-        dest: /etc/loki/loki-config.yaml
-        owner: loki
-        group: loki
 
     - name: Create Loki systemd service file
       copy:
