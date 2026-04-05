@@ -14,3 +14,11 @@
     - secrets.yml
   roles:
     - tailscale_windows
+
+- name: Install Tailscale on Linux subnet routers
+  hosts: linux_subnet_routers
+  gather_facts: true
+  vars_files:
+    - secrets.yml
+  roles:
+    - tailscale_linux_subnet_router
