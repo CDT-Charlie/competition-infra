@@ -1,6 +1,6 @@
 --- 
 - name: Setup IIS Web Server
-  hosts: windows
+  hosts: iis_server
   gather_facts: no
 
   tasks:
@@ -69,5 +69,5 @@
         physical_path: C:\inetpub\wwroot\miracle
       register: website_status
 
-    - name: 
+
 
