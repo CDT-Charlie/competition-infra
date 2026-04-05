@@ -1,0 +1,73 @@
+--- 
+- name: Setup IIS Web Server
+  hosts: windows
+  gather_facts: no
+
+  tasks:
+    - name: Install IIS Web Server Role
+      ansible.windows.win_feature:
+        name: Web-Server
+        state: present
+        include_management_tools: yes
+
+    - name: Create web directory
+      ansible.windows.win_file:
+        path: C:\inetpub\wwwroot\miracle
+        state: directory
+
+    - name: Open Firewall port 
+      community.windows.win_firewall_rule:
+        name: Allow IIS_HTTP
+        localport: 80
+        action: allow
+        direction: in
+        protocol: tcp
+        state: present
+    
+    - name: Give read permsisions to website
+      ansible.windows.win_acl: 
+        path: C:\inetpub\wwwroot\miracle
+        user: IIS_IUSRS
+        rights: ReadAndExecute
+        type: allow
+        state: present
+    
+    - name: Deploy index.html
+      ansible.windows.win_copy:
+        content: |
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Miracle on Ice</title>
+              <style>
+                  body { font-family: sans-serif; background-color: #002868; color: white; text-align: center; }
+                  .container { padding: 50px; }
+                  h1 { color: #BF0A30; font-size: 3em; text-shadow: 2px 2px #fff; }
+                  p { font-size: 1.2em; line-height: 1.6; }
+              </style>
+          </head>
+          <body>
+              <div class="container">
+                  <h1>"Do you believe in miracles? YES!"</h1>
+                  <h2>February 22, 1980 - Lake Placid, NY</h2>
+                  <p>
+                      In one of the greatest upsets in sports history, the young United States 
+                      Olympic hockey team defeated the defending gold-medal Soviet Union team 
+                      4-3 during the medal round of the 1980 Winter Olympics.
+                  </p>
+                  <p>Managed by Ansible on IIS</p>
+              </div>
+          </body>
+          </html>
+        dest: C:\inetpub\wwroot\miracle\index.html
+
+    - name: Setup IIS Website
+      community.windows.win_iis_website:
+        name: "MiracleOnIcOnline"
+        state: started
+        port: 80
+        physical_path: C:\inetpub\wwroot\miracle
+      register: website_status
+
+    - name: 
+
