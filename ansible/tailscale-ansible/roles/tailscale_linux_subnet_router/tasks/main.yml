@@ -2,6 +2,7 @@
 
 # IP Forwarding
 - name: Enable IPv4 forwarding via sysctl.d (persistent)
+  become: true
   ansible.builtin.sysctl:
     name: net.ipv4.ip_forward
     value: "1"
@@ -10,6 +11,7 @@
     state: present
 
 - name: Enable IPv6 forwarding via sysctl.d (persistent)
+  become: true
   ansible.builtin.sysctl:
     name: net.ipv6.conf.all.forwarding
     value: "1"
@@ -20,6 +22,7 @@
 
 # Install Tailscale
 - name: Add Tailscale repository (Debian/Ubuntu)
+  become: true
   shell: |
     curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.gpg | gpg --dearmor -o /usr/share/keyrings/tailscale-archive-keyring.gpg
     curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.list | tee /etc/apt/sources.list.d/tailscale.list
@@ -27,12 +30,14 @@
     creates: /etc/apt/sources.list.d/tailscale.list
 
 - name: Install Tailscale
+  become: true
   apt:
     name: tailscale
     state: present
     update_cache: true
 
 - name: Enable and start tailscaled service
+  become: true
   systemd:
     name: tailscaled
     enabled: true
@@ -41,6 +46,7 @@
 
 # Authenticate and advertise subnet routes
 - name: Bring up Tailscale with authkey and advertised routes
+  become: true
   command: >
     tailscale up
     --authkey={{ tailscale_authkey }}
@@ -53,6 +59,7 @@
 
 # Verify
 - name: Verify Tailscale is connected
+  become: true
   command: tailscale status
   register: tailscale_status
   changed_when: false
@@ -62,6 +69,7 @@
     msg: "{{ tailscale_status.stdout_lines }}"
 
 - name: Confirm routes are being advertised
+  become: true
   command: tailscale status --json
   register: tailscale_json
   changed_when: false
