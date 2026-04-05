@@ -3,6 +3,9 @@
   hosts: agents
   become: true
 
+  vars:
+    loki_server_ip: "{{ '10.100.2.7' if inventory_hostname in groups['blue1_agents'] else '10.100.3.7' }}"
+
   tasks:
     - name: Update apt cache
       apt:
@@ -15,7 +18,17 @@
         state: directory
         mode: '0755'
 
-    - name: Download Grafana GPG key
+    - name: Add Grafana GPG and Repo (Manual Shell)
+      shell: |
+        curl -fsSL https://apt.grafana.com/gpg.key | gpg --dearmor --yes -o /etc/apt/keyrings/grafana.gpg
+        echo "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main" > /etc/apt/sources.list.d/grafana.list
+      args:
+        creates: /etc/apt/sources.list.d/grafana.list
+
+    - name: Force apt update and install Alloy
+      shell: |
+        apt-get update
+        apt-get install -y alloy prometheus-node-exporter- name: Download Grafana GPG key
       shell: |
         curl -fsSL https://apt.grafana.com/gpg.key | gpg --dearmor --yes -o /etc/apt/keyrings/grafana.gpg
       args:
@@ -52,52 +65,81 @@
         groups: adm,systemd-journal
         append: yes
 
-    - name: Configure Alloy to send logs
+    - name: Configure Alloy
       copy:
         dest: /etc/alloy/config.alloy
         content: |
-          logging {
-            level = "info"
-          }
+          logging { level = "info" }
 
-          loki.write "local" {
-            endpoint {
-              url = "http://{{groups['blue'+ group_names[0][-1] + '_server'][0] }}:3100/loki/api/v1/push"
-            }
-          }
-
+          // --- 1. COLLECT SYSTEMD JOURNAL (General Health) ---
           loki.relabel "journal" {
             forward_to = [loki.write.local.receiver]
-            rule {
-              source_labels = ["__journal__systemd_unit"]
-              target_label  = "unit"
-            }
-            rule{
-              source_labels = ["__journal__hostname"]
-              target_label = "hostname"
-            }
+            rule { source_labels = ["__journal__systemd_unit"], target_label = "unit" }
           }
 
           loki.source.journal "read" {
             forward_to = [loki.relabel.journal.receiver]
           }
 
-          local.file_match "mysql_logs" {
+          // --- 2. COLLECT MYSQL FILE LOGS (Detailed Queries) ---
+          local.file_match "mysql" {
             path_targets = [
-              { "job" = "mysql", "type" = "error", "__path__" = "/var/log/mysql/error.log" },
-              { "job" = "mysql", "type" = "query", "__path__" = "/var/log/mysql/query.log" },
+              { "__address__" = "localhost", "filename" = "/var/log/mysql/*.log", "job" = "mysql_files" }
             ]
           }
 
           loki.source.file "mysql" {
-            targets    = local.file_match.mysql_logs.targets
+            targets    = local.file_match.mysql.targets
             forward_to = [loki.write.local.receiver]
           }
 
+          // --- 3. NEW: COLLECT NGINX FILE LOGS (Web Traffic) ---
+          local.file_match "nginx" {
+            path_targets = [
+              { "__address__" = "localhost", "filename" = "/var/log/nginx/*.log", "job" = "nginx_files" }
+            ]
+          }
 
+          loki.source.file "nginx" {
+            targets    = local.file_match.nginx.targets
+            forward_to = [loki.write.local.receiver]
+          }
+
+          // --- 4. SEND TO THE TEAM LOKI SERVER ---
+          loki.write "local" {
+            endpoint {
+              url = "http://{{ loki_server_ip }}:3100/loki/api/v1/push"
+            }
+          }
+
+    - name: Enable MySQL General and Error Logging
+      lineinfile:
+        path: /etc/mysql/mysql.conf.d/mysqld.cnf
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+      loop:
+        - { regexp: "^#?general_log_file", line: "general_log_file = /var/log/mysql/query.log" }
+        - { regexp: "^#?general_log\\s*=", line: "general_log = 1" }
+        - { regexp: "^#?log_error", line: "log_error = /var/log/mysql/error.log" }
+      when: (inventory_hostname == "10.100.2.5") or (inventory_hostname =="10.100.3.5")
+      notify: Restart MySQL
+
+    - name: Ensure MySQL log directory permissions
+      file:
+        path: /var/log/mysql
+        state: directory
+        owner: mysql
+        group: adm
+        mode: '0750'
+      when: (inventory_hostname == "10.100.2.5") or (inventory_hostname =="10.100.3.5")
+
+  handlers:
     - name: Restart Alloy
       systemd:
         name: alloy
         state: restarted
-        enabled: true
-        daemon_reload: yes
+
+    - name: Restart MySQL
+      systemd:
+        name: mysql
+        state: restarted
