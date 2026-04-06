@@ -355,6 +355,9 @@ ansible-playbook -i inventory.yml roles/win_dc_dns/deploy_dc.yml -e windows_dc_d
 - Gemini CLI globally installed via NPM and configured for the local MCP.
 - A `systemd` wrapper that holds a continuous interactive tmux session.
 
+**Setup:**
+- Generate SSH keys for the MCP server: `bash mcp-keys.sh`  
+
 **Variables:** See `group_vars/linux.yml` → `ref_review_mcp`
 
 **Inventory Group:** `mcp_hosts`
