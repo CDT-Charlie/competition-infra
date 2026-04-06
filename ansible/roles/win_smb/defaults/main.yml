@@ -9,6 +9,10 @@ win_smb_apply_insecure_protocols: true
 win_smb_share_description: >-
   Lake Placid '80 — State Secrets (intentionally weak SMB for blue-team hardening).
 
+# Access principal used for both SMB-share and NTFS ACL grants.
+# "Everyone" is intentionally broad/insecure for the lab hardening scenario.
+win_smb_access_principal: "Everyone"
+
 # Copy everything under roles/win_smb/files/ into the share root (PDFs, media, etc.).
 win_smb_copy_role_files: true
 

@@ -88,10 +88,10 @@
     path: "{{ share_path }}"
     state: directory
 
-- name: Grant NTFS Modify rights to allowed group on the folder
+- name: Grant NTFS Modify rights broadly on the folder (intentionally weak)
   ansible.windows.win_acl:
     path: "{{ share_path }}"
-    user: "{{ allowed_group }}"
+    user: "{{ win_smb_access_principal }}"
     rights: Modify
     type: allow
     state: present
@@ -109,13 +109,13 @@
     path: "{{ share_path }}"
     description: "{{ win_smb_share_description }}"
     list: no
-    full: "{{ allowed_group }}"
+    full: "{{ win_smb_access_principal }}"
     encrypt: no
     state: present
 
 - name: Discover themed files shipped with this role
   ansible.builtin.find:
-    paths: "{{ role_path }}/files"
+    paths: "{{ (role_path | default(playbook_dir, true)) }}/files"
     file_type: file
     recurse: false
   delegate_to: localhost
@@ -125,7 +125,7 @@
 
 - name: Copy themed documents into the share
   ansible.windows.win_copy:
-    src: "{{ item.path | basename }}"
+    src: "{{ item.path }}"
     dest: "{{ share_path }}\\{{ item.path | basename }}"
   loop: "{{ _win_smb_role_files.files }}"
   loop_control:
