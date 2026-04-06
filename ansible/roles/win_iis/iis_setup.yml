@@ -1,0 +1,72 @@
+--- 
+- name: Setup IIS Web Server
+  hosts: iis_server
+  gather_facts: no
+
+  tasks:
+    - name: Install IIS Web Server Role
+      ansible.windows.win_feature:
+        name: Web-Server
+        state: present
+        include_management_tools: yes
+
+    - name: Create web directory
+      ansible.windows.win_file:
+        path: C:\inetpub\wwwroot\miracle
+        state: directory
+
+    - name: Open Firewall port 
+      community.windows.win_firewall_rule:
+        name: Allow IIS_HTTP
+        localport: 80
+        action: allow
+        direction: in
+        protocol: tcp
+        state: present
+    
+    - name: Give read permsisions to website
+      ansible.windows.win_acl: 
+        path: C:\inetpub\wwwroot\miracle
+        user: IIS_IUSRS
+        rights: ReadAndExecute
+        type: allow
+        state: present
+    
+    - name: Create miracle directory
+      win_file: 
+        path: C:\inetpub\wwwroot\miracle
+        state: directory
+        
+    - name: Ensure IIS is started
+      win_service:
+        name: W3SVC
+        state: started
+        start_mode: auto
+        
+    - name: Ensure Default Web started
+      community.windows.win_iis_website:
+        name: "Default Web Site"
+        state: started
+
+    - name: Create IIS Link
+      win_shell: |
+        Import-Module WebAdministration
+        if (!(Get-WebApplication -Site "Default Web Site" -Name "miracle")) {
+            New-WebApplication -Site "Default Web Site" -name "miracle" -PhysicalPath "C:\inetpub\wwwroot\miracle"
+        }
+
+    - name: Create index.html with powershell
+      win_shell: |
+        $html = @"
+        <html>
+        <body>
+          <h1>Miracle on Ice</h1>
+          <p>Service is UP and Running.</p>
+        </body>
+        </html>
+        "@
+        $html | Out-File -FilePath "C:\inetpub\wwwroot\miracle\index.html" -Encoding utf8
+
+
+
+
