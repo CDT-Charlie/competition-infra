@@ -23,7 +23,77 @@
   args:
     creates: /usr/bin/gemini
 
-- name: Create Gemini CLI configuration directory
+# ---------- System-wide API key (all users) ----------
+
+- name: Deploy Gemini API key to /etc/profile.d (all users get it on login)
+  ansible.builtin.template:
+    src: gemini-profile.sh.j2
+    dest: /etc/profile.d/gemini-api-key.sh
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy Gemini API Key env file for systemd service
+  ansible.builtin.template:
+    src: gemini.env.j2
+    dest: "/etc/default/ref-review-gemini"
+    owner: root
+    group: root
+    mode: "0600"
+
+# ---------- /etc/skel — future users ----------
+
+- name: Create /etc/skel/.gemini directory (future users)
+  ansible.builtin.file:
+    path: /etc/skel/.gemini
+    state: directory
+    mode: "0755"
+
+- name: Deploy settings.json to /etc/skel (future users get MCP config)
+  ansible.builtin.template:
+    src: gemini-settings.json.j2
+    dest: /etc/skel/.gemini/settings.json
+    mode: "0644"
+
+- name: Deploy .env to /etc/skel (future users get API key)
+  ansible.builtin.template:
+    src: gemini-dotenv.j2
+    dest: /etc/skel/.gemini/.env
+    mode: "0644"
+
+# ---------- All existing home directories ----------
+
+- name: Find all existing home directories under /home
+  ansible.builtin.find:
+    paths: /home
+    file_type: directory
+    recurse: no
+  register: home_dirs
+
+- name: Create .gemini directory for all existing users
+  ansible.builtin.file:
+    path: "{{ item.path }}/.gemini"
+    state: directory
+    mode: "0755"
+  loop: "{{ home_dirs.files }}"
+
+- name: Deploy settings.json to all existing users (MCP auto-connect)
+  ansible.builtin.template:
+    src: gemini-settings.json.j2
+    dest: "{{ item.path }}/.gemini/settings.json"
+    mode: "0644"
+  loop: "{{ home_dirs.files }}"
+
+- name: Deploy .env to all existing users (API key auto-discovery)
+  ansible.builtin.template:
+    src: gemini-dotenv.j2
+    dest: "{{ item.path }}/.gemini/.env"
+    mode: "0644"
+  loop: "{{ home_dirs.files }}"
+
+# ---------- Greyteam domain user (may not be under /home) ----------
+
+- name: Create Gemini CLI configuration directory for greyteam
   ansible.builtin.file:
     path: "{{ ref_review_mcp.ssh_home }}/.gemini"
     state: directory
@@ -31,7 +101,7 @@
     group: "{{ ref_review_mcp.file_group }}"
     mode: "0755"
 
-- name: Deploy gemini settings.json
+- name: Deploy settings.json for greyteam
   ansible.builtin.template:
     src: gemini-settings.json.j2
     dest: "{{ ref_review_mcp.ssh_home }}/.gemini/settings.json"
@@ -39,13 +109,15 @@
     group: "{{ ref_review_mcp.file_group }}"
     mode: "0644"
 
-- name: Deploy Gemini API Key env file
+- name: Deploy .env for greyteam
   ansible.builtin.template:
-    src: gemini.env.j2
-    dest: "/etc/default/ref-review-gemini"
-    owner: root
-    group: root
-    mode: "0600"
+    src: gemini-dotenv.j2
+    dest: "{{ ref_review_mcp.ssh_home }}/.gemini/.env"
+    owner: "{{ ref_review_mcp.file_owner }}"
+    group: "{{ ref_review_mcp.file_group }}"
+    mode: "0644"
+
+# ---------- Systemd service ----------
 
 - name: Deploy ref-review systemd service (tmux wrapper)
   ansible.builtin.template:
