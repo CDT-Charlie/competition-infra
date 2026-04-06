@@ -3,8 +3,10 @@
   ansible.windows.win_service:
     name: LanmanServer
     state: restarted
+    force_dependent_services: true
 
 - name: Restart LanmanWorkstation service
   ansible.windows.win_service:
     name: LanmanWorkstation
     state: restarted
+    force_dependent_services: true
