@@ -1,0 +1,21 @@
+[Unit]
+Description=Ref Review Gemini CLI Service (tmux daemon)
+After=network.target
+
+[Service]
+Type=forking
+User={{ ref_review_mcp.file_owner | default('root', true) }}
+Group={{ ref_review_mcp.file_group | default('root', true) }}
+EnvironmentFile=/etc/default/ref-review-gemini
+Environment=HOME={{ ref_review_mcp.ssh_home }}
+
+# Start a detached tmux session named 'gemini' and launch gemini inside it.
+ExecStart=/usr/bin/tmux new-session -s gemini -d '/usr/bin/gemini'
+# To gracefully stop, terminate the tmux session.
+ExecStop=/usr/bin/tmux kill-session -t gemini
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

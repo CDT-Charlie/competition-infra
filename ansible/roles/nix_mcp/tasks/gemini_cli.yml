@@ -1,0 +1,63 @@
+---
+- name: Ensure gnupg, curl, and tmux are installed
+  ansible.builtin.apt:
+    name:
+      - gnupg
+      - curl
+      - tmux
+    state: present
+    update_cache: yes
+
+- name: Setup NodeSource for Node.js 20.x
+  ansible.builtin.shell: curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+  args:
+    creates: /etc/apt/sources.list.d/nodesource.list
+
+- name: Install Node.js (which includes npm)
+  ansible.builtin.apt:
+    name: nodejs
+    state: present
+
+- name: Install Gemini CLI globally
+  ansible.builtin.command: npm install -g @google/gemini-cli
+  args:
+    creates: /usr/bin/gemini
+
+- name: Create Gemini CLI configuration directory
+  ansible.builtin.file:
+    path: "{{ ref_review_mcp.ssh_home }}/.gemini"
+    state: directory
+    owner: "{{ ref_review_mcp.file_owner }}"
+    group: "{{ ref_review_mcp.file_group }}"
+    mode: "0755"
+
+- name: Deploy gemini settings.json
+  ansible.builtin.template:
+    src: gemini-settings.json.j2
+    dest: "{{ ref_review_mcp.ssh_home }}/.gemini/settings.json"
+    owner: "{{ ref_review_mcp.file_owner }}"
+    group: "{{ ref_review_mcp.file_group }}"
+    mode: "0644"
+
+- name: Deploy Gemini API Key env file
+  ansible.builtin.template:
+    src: gemini.env.j2
+    dest: "/etc/default/ref-review-gemini"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Deploy ref-review systemd service (tmux wrapper)
+  ansible.builtin.template:
+    src: ref-review.service.j2
+    dest: /etc/systemd/system/ref-review.service
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Enable and restart ref-review service
+  ansible.builtin.systemd:
+    name: ref-review
+    enabled: true
+    state: restarted
+    daemon_reload: true

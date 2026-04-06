@@ -1,0 +1,11 @@
+#!/bin/bash
+# Managed by Ansible — sources env then execs the MCP server (stdio).
+set -euo pipefail
+ENV_FILE="{{ ref_review_mcp.env_file }}"
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+fi
+exec "{{ ref_review_mcp.install_dir }}/venv/bin/python" "{{ ref_review_mcp.install_dir }}/ref_review_mcp.py"

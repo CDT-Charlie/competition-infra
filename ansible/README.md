@@ -348,6 +348,17 @@ ansible-playbook -i inventory.yml roles/win_dc_dns/deploy_dc.yml -e windows_dc_d
 **Files:**
 - `files/dovecot.conf` - Dovecot configuration
 
+#### `nix_mcp`
+**Purpose:** Deploy Ref Review read-only MCP server attached to a persistent `gemini-cli` daemon over `tmux`.
+**Deploys:**
+- Python venv and the `ref_review_mcp.py` script.
+- Gemini CLI globally installed via NPM and configured for the local MCP.
+- A `systemd` wrapper that holds a continuous interactive tmux session.
+
+**Variables:** See `group_vars/linux.yml` → `ref_review_mcp`
+
+**Inventory Group:** `mcp_hosts`
+
 #### `nix_grafana`
 **Purpose:** Install Grafana from the official APT repo and tune core `[server]` settings.
 

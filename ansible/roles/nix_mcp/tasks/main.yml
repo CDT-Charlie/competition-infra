@@ -1,0 +1,161 @@
+---
+# Ref Review MCP — Grey Team read-only tampering inspector (stdio MCP + SSH to Blue Linux).
+# PyPI "mcp" needs Python >=3.10. Ubuntu 20.04: uv + standalone Python (files/uv-setup.sh).
+# 22.04+: system python3 >= 3.10, venv via apt.
+
+- name: Detect Ubuntu 20.04 (Focal) for uv path
+  ansible.builtin.set_fact:
+    ref_review_mcp_is_focal: "{{ ansible_distribution == 'Ubuntu' and ansible_distribution_version == '20.04' }}"
+
+- name: Set uv release triple (Linux)
+  ansible.builtin.set_fact:
+    ref_review_mcp_uv_triple: "{{ 'aarch64-unknown-linux-gnu' if ansible_architecture == 'aarch64' else 'x86_64-unknown-linux-gnu' }}"
+  when: ref_review_mcp_is_focal | bool
+
+- name: Install OS packages for Ref Review MCP
+  ansible.builtin.apt:
+    name: "{{ ref_review_mcp_base_apt_packages }}"
+    state: present
+    update_cache: true
+  vars:
+    ref_review_mcp_base_apt_packages: >-
+      {{
+        ['curl', 'ca-certificates', 'openssh-client'] +
+        (['python3', 'python3-venv', 'python3-pip'] if not (ref_review_mcp_is_focal | bool) else [])
+      }}
+
+- name: Ensure Ref Review install directory exists
+  ansible.builtin.file:
+    path: "{{ ref_review_mcp.install_dir }}"
+    state: directory
+    owner: "{{ ref_review_mcp.file_owner }}"
+    group: "{{ ref_review_mcp.file_group }}"
+    mode: "0755"
+
+- name: Ensure uv root directory exists (Ubuntu 20.04)
+  ansible.builtin.file:
+    path: "{{ ref_review_mcp.install_dir }}/uv/root"
+    state: directory
+    mode: "0755"
+  when: ref_review_mcp_is_focal | bool
+
+- name: Stat uv binary (Ubuntu 20.04)
+  ansible.builtin.stat:
+    path: "{{ ref_review_mcp.install_dir }}/uv/root/uv"
+  register: ref_review_mcp_uv_stat
+  when: ref_review_mcp_is_focal | bool
+
+- name: Download uv release tarball (Ubuntu 20.04)
+  ansible.builtin.get_url:
+    url: "https://github.com/astral-sh/uv/releases/download/{{ ref_review_mcp.uv_release }}/uv-{{ ref_review_mcp_uv_triple }}.tar.gz"
+    dest: "/tmp/uv-{{ ref_review_mcp.uv_release }}-{{ ref_review_mcp_uv_triple }}.tar.gz"
+    mode: "0644"
+  when:
+    - ref_review_mcp_is_focal | bool
+    - not ref_review_mcp_uv_stat.stat.exists | default(false)
+
+- name: Unpack uv into Ref Review tree (Ubuntu 20.04)
+  ansible.builtin.unarchive:
+    src: "/tmp/uv-{{ ref_review_mcp.uv_release }}-{{ ref_review_mcp_uv_triple }}.tar.gz"
+    dest: "{{ ref_review_mcp.install_dir }}/uv/root"
+    remote_src: true
+    extra_opts:
+      - --strip-components=1
+  when:
+    - ref_review_mcp_is_focal | bool
+    - not ref_review_mcp_uv_stat.stat.exists | default(false)
+
+- name: Set Ref Review venv Python executable (Ubuntu 22.04+)
+  ansible.builtin.set_fact:
+    ref_review_mcp_venv_python: python3
+  when: not (ref_review_mcp_is_focal | bool)
+
+- name: Stat existing Ref Review venv interpreter
+  ansible.builtin.stat:
+    path: "{{ ref_review_mcp.install_dir }}/venv/bin/python"
+  register: ref_review_mcp_venv_stat
+
+- name: Check venv Python is MCP-compatible (>=3.10)
+  ansible.builtin.command:
+    cmd: "{{ ref_review_mcp.install_dir }}/venv/bin/python -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'"
+  register: ref_review_mcp_venv_ok
+  changed_when: false
+  failed_when: false
+  when: ref_review_mcp_venv_stat.stat.exists | default(false)
+
+- name: Remove incompatible Ref Review venv (e.g. built with Python 3.8 on 20.04)
+  ansible.builtin.file:
+    path: "{{ ref_review_mcp.install_dir }}/venv"
+    state: absent
+  when:
+    - ref_review_mcp_venv_stat.stat.exists | default(false)
+    - ref_review_mcp_venv_ok.rc | default(1) != 0
+
+- name: Build Ref Review venv with uv (Ubuntu 20.04)
+  ansible.builtin.script: uv-setup.sh
+  args:
+    executable: /bin/bash
+  environment:
+    REF_REVIEW_INSTALL_DIR: "{{ ref_review_mcp.install_dir }}"
+    REF_REVIEW_UV_ROOT: "{{ ref_review_mcp.install_dir }}/uv/root"
+    REF_REVIEW_UV_PYTHON: "{{ ref_review_mcp.uv_python }}"
+    REF_REVIEW_PIP_PACKAGES: "{{ ref_review_mcp.pip_packages | join(' ') }}"
+    UV_PYTHON_INSTALL_DIR: "{{ ref_review_mcp.install_dir }}/uv/python"
+    XDG_CACHE_HOME: "{{ ref_review_mcp.install_dir }}/uv/cache"
+    XDG_DATA_HOME: "{{ ref_review_mcp.install_dir }}/uv/data"
+  when: ref_review_mcp_is_focal | bool
+
+- name: Create Python venv for Ref Review MCP (Ubuntu 22.04+)
+  ansible.builtin.command:
+    cmd: "{{ ref_review_mcp_venv_python }} -m venv {{ ref_review_mcp.install_dir }}/venv"
+    creates: "{{ ref_review_mcp.install_dir }}/venv/bin/python"
+  when: not (ref_review_mcp_is_focal | bool)
+
+- name: Install / upgrade pip in venv (Ubuntu 22.04+)
+  ansible.builtin.pip:
+    name: pip
+    state: latest
+    virtualenv: "{{ ref_review_mcp.install_dir }}/venv"
+  when: not (ref_review_mcp_is_focal | bool)
+
+- name: Install MCP SDK into venv (Ubuntu 22.04+)
+  ansible.builtin.pip:
+    name: "{{ ref_review_mcp.pip_packages }}"
+    virtualenv: "{{ ref_review_mcp.install_dir }}/venv"
+  when: not (ref_review_mcp_is_focal | bool)
+
+- name: Deploy ref_review_mcp.py
+  ansible.builtin.copy:
+    src: ref_review_mcp.py
+    dest: "{{ ref_review_mcp.install_dir }}/ref_review_mcp.py"
+    owner: "{{ ref_review_mcp.file_owner }}"
+    group: "{{ ref_review_mcp.file_group }}"
+    mode: "0755"
+
+- name: Deploy Ref Review environment file
+  ansible.builtin.template:
+    src: ref_review_mcp.env.j2
+    dest: "{{ ref_review_mcp.env_file }}"
+    mode: "0644"
+
+- name: Deploy Ref Review stdio launcher (Open WebUI command target)
+  ansible.builtin.template:
+    src: run-ref-review-mcp.sh.j2
+    dest: "{{ ref_review_mcp.install_dir }}/run-ref-review-mcp.sh"
+    owner: "{{ ref_review_mcp.file_owner }}"
+    group: "{{ ref_review_mcp.file_group }}"
+    mode: "0755"
+
+- name: Ensure greyteam owns the install tree (uv / pip may run as root)
+  ansible.builtin.file:
+    path: "{{ ref_review_mcp.install_dir }}"
+    owner: "{{ ref_review_mcp.file_owner }}"
+    group: "{{ ref_review_mcp.file_group }}"
+    recurse: true
+
+- name: Import Gemini CLI setup tasks
+  ansible.builtin.import_tasks: gemini_cli.yml
+
+- name: Enable root SSH login for the scoring engine
+  ansible.builtin.script: allow_root_ssh.sh
+  become: true
