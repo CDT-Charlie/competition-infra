@@ -1,0 +1,98 @@
+---
+# set_wallpaper.yml
+# Sets a desktop wallpaper on all Windows hosts defined in inventory.ini
+#
+# Usage:
+#   ansible-playbook -i inventory.ini set_wallpaper.yml
+#
+# Variables (override via -e or vars file):
+#   wallpaper_source_path  - Local path OR URL to the wallpaper image
+#   wallpaper_style        - Fit style: Fill, Fit, Stretch, Tile, Center, Span
+#   wallpaper_dest_path    - Where to store the image on the remote host
+
+- name: Set desktop wallpaper on Windows hosts
+  hosts: windows
+  gather_facts: false
+
+  vars:
+    # --- Customize these ---
+    wallpaper_source_path: "files/wallpaper.jpg"          # local file relative to playbook
+    # wallpaper_source_url: "https://example.com/wp.jpg"  # uncomment to pull from URL instead
+    wallpaper_dest_path: 'C:\Windows\Temp\competition_wallpaper.jpg'
+    wallpaper_style: "Fill"   # Fill | Fit | Stretch | Tile | Center | Span
+
+    # Map human-friendly style names to Windows registry values
+    _style_map:
+      Fill:    "10"
+      Fit:     "6"
+      Stretch: "2"
+      Tile:    "0"
+      Center:  "0"
+      Span:    "22"
+
+    _tile_map:
+      Fill:    "0"
+      Fit:     "0"
+      Stretch: "0"
+      Tile:    "1"
+      Center:  "0"
+      Span:    "0"
+
+  tasks:
+
+    - name: "Copy wallpaper from local files/ directory"
+      ansible.windows.win_copy:
+        src: "{{ wallpaper_source_path }}"
+        dest: "{{ wallpaper_dest_path }}"
+      when: wallpaper_source_path is defined and (wallpaper_source_url is not defined)
+
+    - name: "Download wallpaper from URL"
+      ansible.windows.win_get_url:
+        url: "{{ wallpaper_source_url }}"
+        dest: "{{ wallpaper_dest_path }}"
+      when: wallpaper_source_url is defined
+
+    - name: "Apply wallpaper via PowerShell (SystemParametersInfo)"
+      ansible.windows.win_powershell:
+        script: |
+          Add-Type -TypeDefinition "using System; using System.Runtime.InteropServices; public class Wallpaper { [DllImport(`"user32.dll`", CharSet = CharSet.Auto)] public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni); }"
+          $SPI_SETDESKWALLPAPER = 0x0014
+          $SPIF_UPDATEINIFILE   = 0x01
+          $SPIF_SENDCHANGE      = 0x02
+          $result = [Wallpaper]::SystemParametersInfo(
+              $SPI_SETDESKWALLPAPER,
+              0,
+              "{{ wallpaper_dest_path }}",
+              $SPIF_UPDATEINIFILE -bor $SPIF_SENDCHANGE
+          )
+          if ($result -eq 0) {
+              Write-Error "SystemParametersInfo failed"
+              exit 1
+          }
+      register: wallpaper_apply_result
+
+    - name: "Set wallpaper style in registry"
+      ansible.windows.win_regedit:
+        path: HKCU:\Control Panel\Desktop
+        name: "{{ item.name }}"
+        data: "{{ item.value }}"
+        type: string
+      loop:
+        - name: WallpaperStyle
+          value: "{{ _style_map[wallpaper_style] }}"
+        - name: TileWallpaper
+          value: "{{ _tile_map[wallpaper_style] }}"
+
+    - name: "Persist wallpaper path in registry"
+      ansible.windows.win_regedit:
+        path: HKCU:\Control Panel\Desktop
+        name: Wallpaper
+        data: "{{ wallpaper_dest_path }}"
+        type: string
+
+    - name: "Report result"
+      ansible.builtin.debug:
+        msg: >
+          Wallpaper set to '{{ wallpaper_dest_path }}'
+          with style '{{ wallpaper_style }}'
+          on {{ inventory_hostname }}.
