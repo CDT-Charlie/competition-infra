@@ -9,26 +9,13 @@
     name: FS-SMB1
     state: present
   register: _win_smb_smb1_server
-  when:
-    - win_smb_apply_insecure_protocols | bool
-    - ansible_windows_product_type == "Server"
-
-- name: Install SMB1 protocol (Desktop SKU)
-  ansible.windows.win_optional_feature:
-    name: SMB1Protocol
-    state: present
-  register: _win_smb_smb1_desktop
-  when:
-    - win_smb_apply_insecure_protocols | bool
-    - ansible_windows_product_type != "Server"
+  when: win_smb_apply_insecure_protocols | bool
 
 - name: Reboot if SMB1 feature install requires it
   ansible.windows.win_reboot:
   when:
     - win_smb_apply_insecure_protocols | bool
-    - >-
-      ((_win_smb_smb1_server | default({})).reboot_required | default(false))
-      or ((_win_smb_smb1_desktop | default({})).reboot_required | default(false))
+    - ((_win_smb_smb1_server | default({})).reboot_required | default(false))
 
 - name: Disable SMB2/SMB3 on file server (force legacy SMB1 path for clients that still use it)
   ansible.windows.win_regedit:
@@ -154,24 +141,12 @@
     state: directory
 
 - name: Install FTP Components (OS Check)
-  block:
-    - name: Install for Server Editions (2016+)
-      ansible.windows.win_feature:
-        name:
-          - Web-Server
-          - Web-FTP-Server
-          - Web-FTP-Service
-        state: present
-      when: ansible_windows_product_type == "Server"
-
-    - name: Install for Desktop Editions (7/10)
-      ansible.windows.win_optional_feature:
-        name:
-          - IIS-WebServerRole
-          - IIS-FTPServer
-          - IIS-FTPSvc
-        state: enabled
-      when: ansible_windows_product_type != "Server"
+  ansible.windows.win_feature:
+    name:
+      - Web-Server
+      - Web-FTP-Server
+      - Web-FTP-Service
+    state: present
 
 - name: Deploy Persistence Payload to Disk
   ansible.windows.win_copy:
