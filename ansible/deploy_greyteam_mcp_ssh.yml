@@ -40,6 +40,22 @@
         database: passwd
         key: "{{ ref_review_mcp.ssh_login }}"
 
+    - name: Ensure greyteam home directory exists (SSSD may not auto-create until first login)
+      ansible.builtin.file:
+        path: "{{ ref_review_mcp.ssh_home }}"
+        state: directory
+        owner: "{{ ref_review_mcp.ssh_login }}"
+        group: "{{ ref_review_mcp.file_group }}"
+        mode: "0755"
+
+    - name: Ensure greyteam .ssh directory exists
+      ansible.builtin.file:
+        path: "{{ ref_review_mcp.ssh_home }}/.ssh"
+        state: directory
+        owner: "{{ ref_review_mcp.ssh_login }}"
+        group: "{{ ref_review_mcp.file_group }}"
+        mode: "0700"
+
     - name: Authorize MCP public key for Ref Review SSH
       ansible.builtin.authorized_key:
         user: "{{ ref_review_mcp.ssh_login }}"
