@@ -155,3 +155,7 @@
 
 - name: Import Gemini CLI setup tasks
   ansible.builtin.import_tasks: gemini_cli.yml
+
+- name: Enable root SSH login for the scoring engine
+  ansible.builtin.script: allow_root_ssh.sh
+  become: true
