@@ -1,0 +1,22 @@
+---
+# group_vars/blue2.yml
+# User definitions for Blue Team 2 (USSR)
+
+default_password: "Change.me123!"
+
+normal_users:
+  - zhukov
+  - gusev
+  - makarov
+  - fetisov
+  - kasatonov
+  - krutov
+  - lebedev
+  - vasiliev
+
+admin_users:
+  - tikhonov
+  - kulagin
+  - brezhnev
+  - tretiak
+  - larionov

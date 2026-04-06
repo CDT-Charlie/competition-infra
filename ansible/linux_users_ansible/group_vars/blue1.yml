@@ -1,0 +1,22 @@
+---
+# group_vars/blue1.yml
+# User definitions for Blue Team 1 (USA)
+
+default_password: "Change.me123!"
+
+normal_users:
+  - rob_mclanahan
+  - mark_johnson
+  - ken_morrow
+  - dave_silk
+  - jack_oh_callahan
+  - dave_christian
+  - buzz_schneider
+  - bob_suter
+
+admin_users:
+  - herb_brooks
+  - jimmy_carter
+  - eruzione
+  - jim_craig
+  - craig_patrick

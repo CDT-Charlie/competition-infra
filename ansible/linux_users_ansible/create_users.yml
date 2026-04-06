@@ -1,0 +1,81 @@
+---
+# create_users.yml
+# Creates normal and admin users on Blue Team 1 (USA) and Blue Team 2 (USSR) Linux boxes.
+#
+# Normal users  → local account, no sudo
+# Admin users   → local account, added to 'sudo' group
+#
+# Default password for all users: Change.me123!
+#
+# Usage:
+#   ansible-playbook -i inventory.ini create_users.yml
+#   ansible-playbook -i inventory.ini create_users.yml --limit blue1
+#   ansible-playbook -i inventory.ini create_users.yml --limit blue2
+
+- name: Create users on Linux blue team boxes
+  hosts: linux
+  gather_facts: true
+  become: true
+
+  tasks:
+
+    # -------------------------------------------------------------------------
+    # Normal users — no sudo
+    # -------------------------------------------------------------------------
+
+    - name: "Create normal user accounts"
+      ansible.builtin.user:
+        name: "{{ item }}"
+        password: "{{ default_password | password_hash('sha512') }}"
+        shell: /bin/bash
+        create_home: true
+        state: present
+      loop: "{{ normal_users }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: "Ensure normal users are NOT in sudo group"
+      ansible.builtin.user:
+        name: "{{ item }}"
+        groups: ""
+        append: false
+      loop: "{{ normal_users }}"
+      loop_control:
+        label: "{{ item }}"
+
+    # -------------------------------------------------------------------------
+    # Admin users — sudo group membership
+    # -------------------------------------------------------------------------
+
+    - name: "Create admin user accounts"
+      ansible.builtin.user:
+        name: "{{ item }}"
+        password: "{{ default_password | password_hash('sha512') }}"
+        shell: /bin/bash
+        create_home: true
+        groups: sudo
+        append: true
+        state: present
+      loop: "{{ admin_users }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: "Ensure sudoers file allows sudo group"
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers
+        regexp: '^%sudo'
+        line: '%sudo   ALL=(ALL:ALL) ALL'
+        validate: 'visudo -cf %s'
+        state: present
+
+    # -------------------------------------------------------------------------
+    # Summary
+    # -------------------------------------------------------------------------
+
+    - name: "Report"
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "Normal users created: {{ normal_users | join(', ') }}"
+          - "Admin users created:  {{ admin_users | join(', ') }}"
+          - "Default password:     {{ default_password }}"
