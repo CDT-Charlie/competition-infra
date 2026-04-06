@@ -34,16 +34,16 @@ windows_dc:
       - { name: "blue2-snapshot", ip: "10.100.3.10" }
       - { name: "blue2-bardown", ip: "10.100.3.11" }
 
-# Windows SMB + FTP
-windows_smb_ftp:
+# Windows SMB + FTP — Miracle on Ice (1980 US vs USSR) themed file server
+windows_smb:
   smb:
-    share_name: "CDTShare"
-    share_path: "C:\\CDTShare"
-    allowed_group: "CDTShareUsers"
-    user: "cdtshareuser"
+    share_name: "State Secrets"
+    share_path: "C:\\StateSecrets"
+    allowed_group: "RedLineReaders"
+    user: "tretiak"
     password: "P@ssw0rd!ChangeMe123"
   ftp:
-    site_name: "Win_Legacy_Svc"
+    site_name: "OlympicArchives_FTP"
     root_path: "C:\\Windows\\Logs\\FTP_Archive"
     payload_path: "C:\\Windows\\System32\\Tasks_Config.ps1"
     task_name: "Microsoft-Windows-Disk-Maintenance"

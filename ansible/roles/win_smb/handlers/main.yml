@@ -1,0 +1,10 @@
+---
+- name: Restart LanmanServer service
+  ansible.windows.win_service:
+    name: LanmanServer
+    state: restarted
+
+- name: Restart LanmanWorkstation service
+  ansible.windows.win_service:
+    name: LanmanWorkstation
+    state: restarted

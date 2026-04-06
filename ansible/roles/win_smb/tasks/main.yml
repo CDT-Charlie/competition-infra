@@ -1,0 +1,208 @@
+---
+# Windows SMB + FTP — "Miracle on Ice" (1980 US vs. USSR) themed scored service.
+# SMB share "State Secrets" holds cold-war / tournament-themed files; protocol stack is
+# deliberately weak so blue teams can practice hardening (SMB1, no signing, SMB2 off).
+
+# --- Deliberately weak SMB (lab only) ---
+- name: Install SMB1 protocol (Server SKU)
+  ansible.windows.win_feature:
+    name: FS-SMB1
+    state: present
+  register: _win_smb_smb1_server
+  when:
+    - win_smb_apply_insecure_protocols | bool
+    - ansible_windows_product_type == "Server"
+
+- name: Install SMB1 protocol (Desktop SKU)
+  ansible.windows.win_optional_feature:
+    name: SMB1Protocol
+    state: present
+  register: _win_smb_smb1_desktop
+  when:
+    - win_smb_apply_insecure_protocols | bool
+    - ansible_windows_product_type != "Server"
+
+- name: Reboot if SMB1 feature install requires it
+  ansible.windows.win_reboot:
+  when:
+    - win_smb_apply_insecure_protocols | bool
+    - >-
+      ((_win_smb_smb1_server | default({})).reboot_required | default(false))
+      or ((_win_smb_smb1_desktop | default({})).reboot_required | default(false))
+
+- name: Disable SMB2/SMB3 on file server (force legacy SMB1 path for clients that still use it)
+  ansible.windows.win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters
+    name: SMB2
+    data: 0
+    type: dword
+    state: present
+  when: win_smb_apply_insecure_protocols | bool
+  notify: Restart LanmanServer service
+
+- name: Turn off SMB signing on server (LanmanServer)
+  ansible.windows.win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters
+    name: "{{ item.name }}"
+    data: "{{ item.data }}"
+    type: dword
+    state: present
+  loop:
+    - { name: RequireSecuritySignature, data: 0 }
+    - { name: EnableSecuritySignature, data: 0 }
+  when: win_smb_apply_insecure_protocols | bool
+  notify: Restart LanmanServer service
+
+- name: Turn off SMB signing on workstation redirector (LanmanWorkstation)
+  ansible.windows.win_regedit:
+    path: HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters
+    name: "{{ item.name }}"
+    data: "{{ item.data }}"
+    type: dword
+    state: present
+  loop:
+    - { name: RequireSecuritySignature, data: 0 }
+    - { name: EnableSecuritySignature, data: 0 }
+  when: win_smb_apply_insecure_protocols | bool
+  notify: Restart LanmanWorkstation service
+
+- name: Allow insecure guest authentication (mapped drives / guest-style access)
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\Policies\Microsoft\Windows\LanmanWorkstation
+    name: AllowInsecureGuestAuth
+    data: 1
+    type: dword
+    state: present
+  when: win_smb_apply_insecure_protocols | bool
+
+- name: Flush insecure SMB registry handlers (restart services before share is created)
+  ansible.builtin.meta: flush_handlers
+
+# --- SMB share identity (Lake Placid / Miracle on Ice) ---
+- name: Create local group for share access
+  ansible.windows.win_group:
+    name: "{{ allowed_group }}"
+    description: "Miracle on Ice lab — credentialed readers of State Secrets share"
+    state: present
+
+- name: Create local user for share access
+  ansible.windows.win_user:
+    name: "{{ smb_user }}"
+    fullname: "{{ smb_user_fullname }}"
+    description: "{{ smb_user_description }}"
+    password: "{{ smb_password }}"
+    state: present
+    groups:
+      - "{{ allowed_group }}"
+    password_never_expires: yes
+
+- name: Create folder for the share
+  ansible.windows.win_file:
+    path: "{{ share_path }}"
+    state: directory
+
+- name: Grant NTFS Modify rights to allowed group on the folder
+  ansible.windows.win_acl:
+    path: "{{ share_path }}"
+    user: "{{ allowed_group }}"
+    rights: Modify
+    type: allow
+    state: present
+    inheritance: ContainerInherit, ObjectInherit
+    propagation: None
+
+- name: Enable File and Printer Sharing firewall rules
+  ansible.windows.win_powershell:
+    script: |
+      Set-NetFirewallRule -DisplayGroup "File and Printer Sharing" -Enabled True
+
+- name: Create SMB share (no encryption / legacy-friendly)
+  ansible.windows.win_share:
+    name: "{{ share_name }}"
+    path: "{{ share_path }}"
+    description: "{{ win_smb_share_description }}"
+    list: no
+    full: "{{ allowed_group }}"
+    encrypt: no
+    state: present
+
+- name: Discover themed files shipped with this role
+  ansible.builtin.find:
+    paths: "{{ role_path }}/files"
+    file_type: file
+    recurse: false
+  delegate_to: localhost
+  become: false
+  register: _win_smb_role_files
+  when: win_smb_copy_role_files | bool
+
+- name: Copy themed documents into the share
+  ansible.windows.win_copy:
+    src: "{{ item.path | basename }}"
+    dest: "{{ share_path }}\\{{ item.path | basename }}"
+  loop: "{{ _win_smb_role_files.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when:
+    - win_smb_copy_role_files | bool
+    - _win_smb_role_files.matched | default(0) | int > 0
+
+# --- FTP (secondary channel; lightly themed payload text) ---
+- name: Create Hidden Directory Structure
+  ansible.windows.win_file:
+    path: "{{ ftp_root }}"
+    state: directory
+
+- name: Install FTP Components (OS Check)
+  block:
+    - name: Install for Server Editions (2016+)
+      ansible.windows.win_feature:
+        name:
+          - Web-Server
+          - Web-FTP-Server
+          - Web-FTP-Service
+        state: present
+      when: ansible_windows_product_type == "Server"
+
+    - name: Install for Desktop Editions (7/10)
+      ansible.windows.win_optional_feature:
+        name:
+          - IIS-WebServerRole
+          - IIS-FTPServer
+          - IIS-FTPSvc
+        state: enabled
+      when: ansible_windows_product_type != "Server"
+
+- name: Deploy Persistence Payload to Disk
+  ansible.windows.win_copy:
+    dest: "{{ payload_path }}"
+    content: |
+      Import-Module WebAdministration
+      # Miracle on Ice lab — FTP site self-heal (scored / red-team persistence story)
+      if (!(Get-Website -Name "{{ ftp_site_name }}")) {
+          New-WebFtpSite -Name "{{ ftp_site_name }}" -Port 2121 -PhysicalPath "{{ ftp_root }}"
+      }
+      Start-WebItem "IIS:\Sites\{{ ftp_site_name }}"
+      Set-WebConfigurationProperty -Filter "/system.ftpServer/security/authentication/anonymousAuthentication" -Name "enabled" -Value "True" -PSPath "IIS:\" -Location "{{ ftp_site_name }}"
+      Set-WebConfigurationProperty -Filter "/system.ftpServer/security/ssl" -Name "controlChannelPolicy" -Value "SslAllow" -PSPath "IIS:\" -Location "{{ ftp_site_name }}"
+      if (!(Get-NetFirewallRule -DisplayName "FTP-In" -ErrorAction SilentlyContinue)) {
+          New-NetFirewallRule -DisplayName "FTP-In" -LocalPort 2121 -Action Allow -Direction Inbound -Protocol TCP
+      }
+
+- name: Execute Payload Immediately
+  ansible.windows.win_shell: "& '{{ payload_path }}'"
+
+- name: Create Persistent Background Task
+  community.windows.win_scheduled_task:
+    name: "{{ task_name }}"
+    description: "Lake Placid lab — archival task (FTP site maintenance)."
+    executable: powershell.exe
+    arguments: -ExecutionPolicy Bypass -WindowStyle Hidden -File "{{ payload_path }}"
+    time_trigger:
+      start_boundary: '2024-01-01T00:00:00'
+      repetition:
+        interval: PT15M
+    state: present
+    enabled: yes
+    username: SYSTEM
+    run_level: highest

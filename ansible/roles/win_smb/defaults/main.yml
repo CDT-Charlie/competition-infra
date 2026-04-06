@@ -1,0 +1,17 @@
+---
+# Miracle on Ice (1980 US vs USSR) themed SMB lab role — defaults.
+#
+# win_smb_apply_insecure_protocols: when true, enables SMB1, disables SMB2 on the LanmanServer
+# service, turns off SMB signing (server + workstation), and allows insecure guest auth policy.
+# Intended only for isolated competition / hardening ranges.
+win_smb_apply_insecure_protocols: true
+
+win_smb_share_description: >-
+  Lake Placid '80 — State Secrets (intentionally weak SMB for blue-team hardening).
+
+# Copy everything under roles/win_smb/files/ into the share root (PDFs, media, etc.).
+win_smb_copy_role_files: true
+
+# Local SMB user presentation (override via play vars / inventory).
+smb_user_fullname: "Vladislav Tretiak (lab persona)"
+smb_user_description: "1980 Miracle on Ice — themed State Secrets reader account"
