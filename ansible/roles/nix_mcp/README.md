@@ -1,6 +1,6 @@
 # nix_mcp — Ref Review (read-only MCP server)
 
-**Ref Review** is a single-file Python [Model Context Protocol](https://modelcontextprotocol.io) server for the Miracle on Ice competition. Blue Teams attach it to **Open WebUI** over **stdio**. It exposes one primary tool, **`analyze_linux_tampering`**, which SSHes as the domain principal configured in `ref_review_mcp.ssh_login` (default `greyteam@{{ ad_domain }}`, e.g. `greyteam@lakeplacid.local`) to other Blue Linux hosts in **10.100.2.0/24** (USA) or **10.100.3.0/24** (USSR) and returns a read-only, narrative “post-game recap” (systemd status, listening ports, NAT table snapshot, config paths, `/etc/hosts`).
+**Ref Review** is a single-file Python [Model Context Protocol](https://modelcontextprotocol.io) server for the Miracle on Ice competition. Blue Teams attach it to the **Gemini CLI** over **stdio**. It exposes one primary tool, **`analyze_linux_tampering`**, which SSHes as the domain principal configured in `ref_review_mcp.ssh_login` (default `greyteam@{{ ad_domain }}`, e.g. `greyteam@lakeplacid.local`) to other Blue Linux hosts in **10.100.2.0/24** (USA) or **10.100.3.0/24** (USSR) and returns a read-only, narrative “post-game recap” (systemd status, listening ports, NAT table snapshot, config paths, `/etc/hosts`).
 
 This directory is the **Ansible role** `nix_mcp`. Deployment is driven from the main playbook ([`site.yml`](../../site.yml)); SSH key trust for MCP is a **separate** playbook ([`deploy_greyteam_mcp_ssh.yml`](../../deploy_greyteam_mcp_ssh.yml)).
 
@@ -24,15 +24,15 @@ This directory is the **Ansible role** `nix_mcp`. Deployment is driven from the 
 - **`ansible-playbook`** with SSH access to Linux targets as **`bootstrap_user`** (`cyberrange` by default) and **`become`** (sudo), per [`group_vars/blue_linux.yml`](../../group_vars/blue_linux.yml).
 - For **`deploy_greyteam_mcp_ssh.yml`**: ability to **`lookup('file', ...)`** the public key path on the controller.
 
-### For Open WebUI integration
+### For Gemini CLI integration
 
-- Open WebUI (or any MCP client) that can spawn a **stdio** server process.
+- The Gemini CLI (or any MCP client) that can spawn a **stdio** server process.
 - The OS user that **starts** the MCP process must be able to read:
 
   - The venv + scripts under **`ref_review_mcp.install_dir`** (owned by the domain principal after role completion), and  
   - The **private SSH key** at **`ref_review_mcp.ssh_identity_file`** (installed by `deploy_greyteam_mcp_ssh.yml` for `greyteam@realm`).
 
-  In practice, run Open WebUI (or the wrapper) **as `greyteam@realm`** on the cross-check host, or align ownership and permissions with your site policy.
+  In practice, the systemd wrapper runs the Gemini CLI **as `greyteam@realm`** on the cross-check host, or align ownership and permissions with your site policy.
 
 ### Python on the target (installed by the role)
 
@@ -152,18 +152,16 @@ This playbook:
 
 If you edited `ref_review_mcp` in `linux.yml`, re-run the Ref Review play so `/etc/default/ref_review_mcp` and the launcher stay in sync.
 
-### 6. Configure Open WebUI (stdio MCP)
+### 6. Gemini CLI Daemon Integration
 
-Point the client at the **launcher** (sources env, then runs Python):
+The `nix_mcp` role deploys Google's native `gemini-cli` wrapped in a persistent `systemd` daemon (**`ref-review.service`**) interacting over `tmux`. This runs the interactive CLI interface on the machine, hooking directly into the `run-ref-review-mcp.sh` script (which correctly sources the isolated Python `venv` to start the MCP over **stdio**). 
 
-- **Command:** `/opt/ref_review_mcp/run-ref-review-mcp.sh`  
-  (or `bash` with that path as the argument, depending on the UI.)
-
-- **Working directory:** optional; launcher uses absolute paths.
-
-- **Transport:** stdio.
-
-- **Run as:** a user that can read **`ssh_identity_file`** and the venv (normally **`greyteam@realm`** on cross-check).
+**For Blue Team users & Grey Team Devs — How to get started:**
+1. **Set API Key:** Modify `/etc/default/ref-review-gemini` on the deployed machine with your `GEMINI_API_KEY`, then run `sudo systemctl restart ref-review`.
+2. **Connect to the Daemon:** Connect directly to the multiplexed terminal session on the system by running:  
+   `tmux attach -t gemini`
+3. **Ask the AI:** You will be placed into the interactive Gemini chat prompt. Ask it something like: *"Please run your analyze_linux_tampering tool to review the recent tampering on 10.100.2.x nginx service."*
+4. **Disconnect Safely:** To detach and leave the session alive in the background, press **`Ctrl+B`**, release, then **`D`**. (Do *not* type `exit` in the console, or systemd will automatically restart the session!).
 
 ---
 
@@ -245,11 +243,11 @@ The process waits on stdin for MCP JSON-RPC. For a quick protocol check, use **[
 3. Call **`analyze_linux_tampering`** with a valid **`target_ip`** and **`service_name`** (e.g. `nginx`).  
 4. Confirm the returned text includes the four sections and “Coach, here is the tape…” style recap.
 
-### E. Open WebUI
+### E. Gemini CLI Daemon
 
-1. Add an MCP server entry with stdio command = **`/opt/ref_review_mcp/run-ref-review-mcp.sh`**.  
-2. Ensure the process runs as a user with access to the private key and venv.  
-3. In chat, invoke the tool with **`target_ip`** and **`service_name`**.  
+1. The Ansible deployment automatically configures `~/.gemini/settings.json` to point the `gemini` cli to the stdio command: **`/opt/ref_review_mcp/run-ref-review-mcp.sh`**.  
+2. Ensure `GEMINI_API_KEY` is placed in `/etc/default/ref-review-gemini`.  
+3. In the tmux chat interface, invoke the tool by passing the **`target_ip`** and **`service_name`**.  
 4. If the model does not call tools automatically, use a prompt that explicitly asks for **`analyze_linux_tampering`**.
 
 ### F. Negative tests (optional)
@@ -268,7 +266,7 @@ The process waits on stdin for MCP JSON-RPC. For a quick protocol check, use **[
 | `chown` fails in `nix_mcp` | Domain user not resolvable yet; run after `nix_base` join. |
 | MCP SSH always fails | `REF_REVIEW_SSH_IDENTITY_FILE` path wrong, file missing, or permissions; run section **B**. |
 | `sudo` NAT table empty / unreadable | Peers may need passwordless sudo for `greyteam` to read `iptables -t nat -L -n`, or accept degraded NAT visibility (tool reports that). |
-| Open WebUI shows no tools | stdio command wrong, crash on start (check venv `mcp` install), or wrong user. |
+| Gemini CLI shows no tools | stdio command wrong, crash on start (check venv `mcp` install), or wrong user. |
 | **uv / Python download fails on 20.04** | Host must reach **GitHub** (`github.com`, `objects.githubusercontent.com` or your proxy allowlist). Check disk space under **`ref_review_mcp.install_dir`**. Bump **`uv_release`** if the tarball URL 404s. |
 | **uv pip install / PyPI errors** | Outbound HTTPS to **PyPI**; proxy `HTTP(S)_PROXY` may need to be set for the root task environment if you add that later. |
 

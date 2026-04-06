@@ -152,3 +152,6 @@
     owner: "{{ ref_review_mcp.file_owner }}"
     group: "{{ ref_review_mcp.file_group }}"
     recurse: true
+
+- name: Import Gemini CLI setup tasks
+  ansible.builtin.import_tasks: gemini_cli.yml
