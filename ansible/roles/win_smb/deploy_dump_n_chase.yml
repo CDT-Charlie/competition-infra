@@ -1,0 +1,38 @@
+---
+- name: Deploy only win_smb role to dump-n-chase hosts
+  hosts:
+    - blue1-dump-n-chase
+    - blue2-dump-n-chase
+  gather_facts: true
+  vars_files:
+    - ../../group_vars/windows.yml
+  vars:
+    share_name: "{{ windows_smb.smb.share_name }}"
+    share_path: "{{ windows_smb.smb.share_path }}"
+    allowed_group: "{{ windows_smb.smb.allowed_group }}"
+    smb_user: "{{ windows_smb.smb.user }}"
+    smb_password: "{{ windows_smb.smb.password }}"
+    ftp_site_name: "{{ windows_smb.ftp.site_name }}"
+    ftp_root: "{{ windows_smb.ftp.root_path }}"
+    payload_path: "{{ windows_smb.ftp.payload_path }}"
+    task_name: "{{ windows_smb.ftp.task_name }}"
+
+  pre_tasks:
+    - name: Load win_smb role defaults
+      ansible.builtin.include_vars:
+        file: defaults/main.yml
+
+  handlers:
+    - name: Restart LanmanServer service
+      ansible.windows.win_service:
+        name: LanmanServer
+        state: restarted
+
+    - name: Restart LanmanWorkstation service
+      ansible.windows.win_service:
+        name: LanmanWorkstation
+        state: restarted
+
+  tasks:
+    - name: Run win_smb tasks
+      ansible.builtin.import_tasks: tasks/main.yml
