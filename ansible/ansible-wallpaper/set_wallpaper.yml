@@ -1,12 +1,13 @@
 ---
 # set_wallpaper.yml
 # Sets a desktop wallpaper on all Windows hosts defined in inventory.ini
+# Uses HKLM policy registry keys — works regardless of active desktop session.
 #
 # Usage:
 #   ansible-playbook -i inventory.ini set_wallpaper.yml
 #
 # Variables (override via -e or vars file):
-#   wallpaper_source_path  - Local path OR URL to the wallpaper image
+#   wallpaper_source_path  - Local path to the wallpaper image
 #   wallpaper_style        - Fit style: Fill, Fit, Stretch, Tile, Center, Span
 #   wallpaper_dest_path    - Where to store the image on the remote host
 
@@ -19,7 +20,7 @@
     wallpaper_source_path: "files/wallpaper.jpg"          # local file relative to playbook
     # wallpaper_source_url: "https://example.com/wp.jpg"  # uncomment to pull from URL instead
     wallpaper_dest_path: 'C:\Windows\Temp\competition_wallpaper.jpg'
-    wallpaper_style: "Fill"   # Fill | Fit | Stretch | Tile | Center | Span
+    wallpaper_style: "Fit"   # Fill | Fit | Stretch | Tile | Center | Span
 
     # Map human-friendly style names to Windows registry values
     _style_map:
@@ -52,26 +53,31 @@
         dest: "{{ wallpaper_dest_path }}"
       when: wallpaper_source_url is defined
 
-    - name: "Apply wallpaper via PowerShell (SystemParametersInfo)"
-      ansible.windows.win_powershell:
-        script: |
-          Add-Type -TypeDefinition "using System; using System.Runtime.InteropServices; public class Wallpaper { [DllImport(`"user32.dll`", CharSet = CharSet.Auto)] public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni); }"
-          $SPI_SETDESKWALLPAPER = 0x0014
-          $SPIF_UPDATEINIFILE   = 0x01
-          $SPIF_SENDCHANGE      = 0x02
-          $result = [Wallpaper]::SystemParametersInfo(
-              $SPI_SETDESKWALLPAPER,
-              0,
-              "{{ wallpaper_dest_path }}",
-              $SPIF_UPDATEINIFILE -bor $SPIF_SENDCHANGE
-          )
-          if ($result -eq 0) {
-              Write-Error "SystemParametersInfo failed"
-              exit 1
-          }
-      register: wallpaper_apply_result
+    # -------------------------------------------------------------------------
+    # HKLM policy keys — machine-wide, no active desktop session required.
+    # Takes effect for all users on next login.
+    # -------------------------------------------------------------------------
 
-    - name: "Set wallpaper style in registry"
+    - name: "Set wallpaper path via HKLM policy"
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: Wallpaper
+        data: "{{ wallpaper_dest_path }}"
+        type: string
+
+    - name: "Set wallpaper style via HKLM policy"
+      ansible.windows.win_regedit:
+        path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System
+        name: WallpaperStyle
+        data: "{{ _style_map[wallpaper_style] }}"
+        type: string
+
+    # -------------------------------------------------------------------------
+    # HKCU keys — applies immediately for the currently logged-in user.
+    # Harmless if no user is logged in; will be overridden by HKLM anyway.
+    # -------------------------------------------------------------------------
+
+    - name: "Set wallpaper style in HKCU"
       ansible.windows.win_regedit:
         path: HKCU:\Control Panel\Desktop
         name: "{{ item.name }}"
@@ -83,12 +89,32 @@
         - name: TileWallpaper
           value: "{{ _tile_map[wallpaper_style] }}"
 
-    - name: "Persist wallpaper path in registry"
+    - name: "Set wallpaper path in HKCU"
       ansible.windows.win_regedit:
         path: HKCU:\Control Panel\Desktop
         name: Wallpaper
         data: "{{ wallpaper_dest_path }}"
         type: string
+
+    # -------------------------------------------------------------------------
+    # Refresh the desktop for any boxes that DO have an active session.
+    # ignore_errors so boxes with no session don't fail the play.
+    # -------------------------------------------------------------------------
+
+    - name: "Refresh desktop on active sessions"
+      ansible.windows.win_powershell:
+        script: |
+          Add-Type -TypeDefinition "using System; using System.Runtime.InteropServices; public class Wallpaper { [DllImport(`"user32.dll`", CharSet = CharSet.Auto)] public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni); }"
+          $SPI_SETDESKWALLPAPER = 0x0014
+          $SPIF_UPDATEINIFILE   = 0x01
+          $SPIF_SENDCHANGE      = 0x02
+          [Wallpaper]::SystemParametersInfo(
+              $SPI_SETDESKWALLPAPER,
+              0,
+              "{{ wallpaper_dest_path }}",
+              $SPIF_UPDATEINIFILE -bor $SPIF_SENDCHANGE
+          ) | Out-Null
+      ignore_errors: true
 
     - name: "Report result"
       ansible.builtin.debug:
