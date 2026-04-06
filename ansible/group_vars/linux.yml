@@ -60,4 +60,4 @@ ref_review_mcp:
   file_owner: "greyteam@{{ ad_domain }}"
   file_group: "domain users@{{ ad_domain }}"
   env_file: "/etc/default/ref_review_mcp"
-  gemini_api_key: "AIzaSyAXx65eQc4oDEfAXiQwvSIyw8Ta2bZb9qo"
+  gemini_api_key: "{{ gemini_api_key_input | default('UNSET') }}"

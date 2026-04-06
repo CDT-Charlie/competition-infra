@@ -38,5 +38,5 @@ ref_review_mcp:
 
   env_file: "/etc/default/ref_review_mcp"
 
-  gemini_api_key: "AIzaSyAXx65eQc4oDEfAXiQwvSIyw8Ta2bZb9qo"
+  gemini_api_key: "{{ gemini_api_key_input | default('UNSET') }}"
 
