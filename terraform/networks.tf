@@ -13,14 +13,14 @@ resource "openstack_networking_subnet_v2" "admin" {
   dns_nameservers = ["1.1.1.1", "8.8.8.8"]
 }
 
-resource "openstack_networking_network_v2" "red" {
-  name           = "red_net"
+resource "openstack_networking_network_v2" "alpha_charlie_red_team" {
+  name           = "alpha-charlie red team"
   admin_state_up = true
 }
 
-resource "openstack_networking_subnet_v2" "red" {
-  name       = "red_subnet"
-  network_id = openstack_networking_network_v2.red.id
+resource "openstack_networking_subnet_v2" "alpha_red" {
+  name       = "Red Team"
+  network_id = openstack_networking_network_v2.alpha_charlie_red_team.id
   cidr       = "10.100.1.0/24"
   ip_version = 4
 
