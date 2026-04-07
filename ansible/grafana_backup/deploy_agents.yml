@@ -72,7 +72,6 @@
         content: |
           logging { level = "info" }
 
-          // --- 1. COLLECT SYSTEMD JOURNAL (General Health) ---
           loki.relabel "journal" {
             forward_to = [loki.write.local.receiver]
             rule { source_labels = ["__journal__systemd_unit"], target_label = "unit" }
@@ -82,10 +81,9 @@
             forward_to = [loki.relabel.journal.receiver]
           }
 
-          // --- 2. COLLECT MYSQL FILE LOGS (Detailed Queries) ---
           local.file_match "mysql" {
             path_targets = [
-              { "__address__" = "localhost", "filename" = "/var/log/mysql/*.log", "job" = "mysql_files" }
+              { "__address__" = "localhost", "filename" = "/var/log/mysql/*.log", "job" = "mysql_files" },
             ]
           }
 
@@ -94,10 +92,9 @@
             forward_to = [loki.write.local.receiver]
           }
 
-          // --- 3. NEW: COLLECT NGINX FILE LOGS (Web Traffic) ---
           local.file_match "nginx" {
             path_targets = [
-              { "__address__" = "localhost", "filename" = "/var/log/nginx/*.log", "job" = "nginx_files" }
+              { "__address__" = "localhost", "filename" = "/var/log/nginx/*.log", "job" = "nginx_files" },
             ]
           }
 
@@ -106,12 +103,11 @@
             forward_to = [loki.write.local.receiver]
           }
 
-          // --- 4. SEND TO THE TEAM LOKI SERVER ---
           loki.write "local" {
             endpoint {
-              url = "http://{{ loki_server_ip }}:3100/loki/api/v1/push"
+              url = "http://10.100.3.7:3100/loki/api/v1/push"
             }
-          }
+          }      
       notify: Restart Alloy
 
     - name: Enable MySQL General and Error Logging
