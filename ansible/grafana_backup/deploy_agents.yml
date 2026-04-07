@@ -64,6 +64,7 @@
         name: alloy
         groups: adm,systemd-journal
         append: yes
+      notify: Restart Alloy
 
     - name: Configure Alloy
       copy:
@@ -111,6 +112,7 @@
               url = "http://{{ loki_server_ip }}:3100/loki/api/v1/push"
             }
           }
+      notify: Restart Alloy
 
     - name: Enable MySQL General and Error Logging
       lineinfile:

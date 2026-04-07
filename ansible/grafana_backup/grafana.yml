@@ -87,7 +87,20 @@
       file:
         path: /etc/loki
         state: directory
+        mode: "0755"
+
+    - name: Ensure Loki owns its data and config
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: loki
+        group: loki
         mode: '0755'
+        recurse: yes
+      loop:
+        - /etc/loki
+        - /tmp/loki
+        - /var/lib/lib
 
     - name: Download default Loki config (Shell version)
       shell: |
