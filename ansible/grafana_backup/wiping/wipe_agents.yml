@@ -1,0 +1,38 @@
+---
+- name: Remove Grafana Alloy Agents from Blue Team 2
+  hosts: blue_team_2
+  become: true
+
+  tasks:
+    - name: Stop and disable Grafana Alloy service
+      ansible.builtin.systemd:
+        name: alloy
+        state: stopped
+        enabled: false
+      ignore_errors: true  # Prevents failure if the service is already gone
+
+    - name: Uninstall Alloy package (Debian/Ubuntu)
+      ansible.builtin.apt:
+        name: alloy
+        state: absent
+        purge: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Uninstall Alloy package (RHEL/CentOS)
+      ansible.builtin.yum:
+        name: alloy
+        state: absent
+      when: ansible_os_family == "RedHat"
+
+    - name: Remove Alloy configuration and data directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/alloy
+        - /var/lib/alloy
+        - /var/log/alloy
+
+    - name: Reload systemd daemon
+      ansible.builtin.systemd:
+        daemon_reload: true
