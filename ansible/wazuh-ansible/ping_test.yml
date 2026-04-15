@@ -1,0 +1,26 @@
+---
+- name: Test connectivity to Linux hosts
+  hosts: linux
+  gather_facts: false
+
+  tasks:
+    - name: Ping Linux hosts
+      ping:
+
+    - name: Show Linux success
+      debug:
+        msg: "Linux host {{ inventory_hostname }} is reachable"
+
+---
+
+- name: Test connectivity to Windows hosts
+  hosts: windows
+  gather_facts: false
+
+  tasks:
+    - name: Ping Windows hosts
+      win_ping:
+
+    - name: Show Windows success
+      debug:
+        msg: "Windows host {{ inventory_hostname }} is reachable"
