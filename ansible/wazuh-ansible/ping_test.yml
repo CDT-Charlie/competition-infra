@@ -11,8 +11,6 @@
       debug:
         msg: "Linux host {{ inventory_hostname }} is reachable"
 
----
-
 - name: Test connectivity to Windows hosts
   hosts: windows
   gather_facts: false
