@@ -1,0 +1,64 @@
+---
+- name: Ensure required Wazuh variables exist
+  assert:
+    that:
+      - wazuh_manager_ip is defined
+      - wazuh_agent_group is defined
+    fail_msg: "Missing wazuh_manager_ip or wazuh_agent_group"
+
+- name: Ensure temp directory exists
+  win_file:
+    path: C:\Temp
+    state: directory
+
+- name: Download Wazuh agent installer
+  win_get_url:
+    url: "{{ wazuh_windows_installer_url }}"
+    dest: "{{ wazuh_windows_installer_path }}"
+
+- name: Install Wazuh agent package
+  win_package:
+    path: "{{ wazuh_windows_installer_path }}"
+    state: present
+    arguments: >-
+      /q
+      WAZUH_MANAGER="{{ wazuh_manager_ip }}"
+      WAZUH_AGENT_NAME="{{ wazuh_agent_name | default(inventory_hostname) }}"
+      WAZUH_AGENT_GROUP="{{ wazuh_agent_group }}"
+  notify: restart wazuh agent
+
+- name: Ensure Wazuh config directory exists
+  win_file:
+    path: "{{ wazuh_agent_config_dir }}"
+    state: directory
+
+- name: Deploy ossec.conf from template
+  win_template:
+    src: ossec.conf.j2
+    dest: "{{ wazuh_agent_config_path }}"
+  notify: restart wazuh agent
+
+- name: Ensure Wazuh service is enabled and started
+  win_service:
+    name: "{{ wazuh_agent_service_name }}"
+    start_mode: auto
+    state: started
+
+- name: Wait for Wazuh service to settle
+  pause:
+    seconds: 8
+
+- name: Get Wazuh service status
+  win_shell: |
+    (Get-Service -Name "{{ wazuh_agent_service_name }}").Status
+  register: wazuh_windows_service_status
+  changed_when: false
+  failed_when: false
+
+- name: Show Windows Wazuh status
+  debug:
+    msg:
+      - "Host: {{ inventory_hostname }}"
+      - "Manager: {{ wazuh_manager_ip }}"
+      - "Group: {{ wazuh_agent_group }}"
+      - "Service status: {{ wazuh_windows_service_status.stdout | trim | default('unknown') }}"

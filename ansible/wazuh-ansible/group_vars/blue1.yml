@@ -1,0 +1,4 @@
+wazuh_manager_ip: "10.100.2.32"
+wazuh_agent_group: "BlueTeam1"
+wazuh_team: "blue1"
+wazuh_subnet: "10.100.2.0/24"

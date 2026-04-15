@@ -1,0 +1,2 @@
+wazuh_service: "rsyslog"
+wazuh_host_os: "ubuntu-24.04"

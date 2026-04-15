@@ -1,0 +1,2 @@
+wazuh_service: "iis"
+wazuh_host_os: "windows-server-2019"

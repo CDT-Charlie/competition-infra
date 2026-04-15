@@ -1,0 +1,6 @@
+---
+wazuh_repo_url: "https://packages.wazuh.com/4.x/apt/"
+wazuh_repo_key_url: "https://packages.wazuh.com/key/GPG-KEY-WAZUH"
+
+wazuh_agent_config_path: "/var/ossec/etc/ossec.conf"
+wazuh_agent_service_name: "wazuh-agent"

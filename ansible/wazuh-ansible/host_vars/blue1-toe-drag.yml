@@ -1,0 +1,2 @@
+wazuh_service: "mail"
+wazuh_host_os: "ubuntu-22.04"

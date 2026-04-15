@@ -1,0 +1,7 @@
+---
+wazuh_windows_installer_url: "https://packages.wazuh.com/4.x/windows/wazuh-agent-4.12.0-1.msi"
+wazuh_windows_installer_path: "C:\\Temp\\wazuh-agent.msi"
+
+wazuh_agent_config_dir: "C:\\Program Files (x86)\\ossec-agent"
+wazuh_agent_config_path: "C:\\Program Files (x86)\\ossec-agent\\ossec.conf"
+wazuh_agent_service_name: "WazuhSvc"

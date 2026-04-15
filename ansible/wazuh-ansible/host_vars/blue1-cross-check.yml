@@ -1,0 +1,2 @@
+wazuh_service: "mcp"
+wazuh_host_os: "ubuntu-20.04"

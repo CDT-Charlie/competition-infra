@@ -1,0 +1,30 @@
+<ossec_config>
+  <client>
+    <server>
+      <address>{{ wazuh_manager_ip }}</address>
+      <port>1514</port>
+      <protocol>tcp</protocol>
+    </server>
+    <config-profile>{{ wazuh_team | default('default') }}</config-profile>
+    <notify_time>10</notify_time>
+    <time-reconnect>60</time-reconnect>
+    <auto_restart>yes</auto_restart>
+  </client>
+
+  <enrollment>
+    <enabled>yes</enabled>
+    <manager_address>{{ wazuh_manager_ip }}</manager_address>
+    <port>1515</port>
+    <groups>{{ wazuh_agent_group }}</groups>
+  </enrollment>
+
+  <active-response>
+    <disabled>yes</disabled>
+  </active-response>
+
+  <labels>
+    <label key="team">{{ wazuh_team | default('unknown') }}</label>
+    <label key="service">{{ wazuh_service | default('unknown') }}</label>
+    <label key="os_version">{{ wazuh_host_os | default('unknown') }}</label>
+  </labels>
+</ossec_config>

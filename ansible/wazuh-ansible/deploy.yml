@@ -1,0 +1,51 @@
+---
+- name: Deploy Wazuh agents to Linux hosts
+  hosts: linux
+  gather_facts: true
+  become: true
+
+  pre_tasks:
+    - name: Ensure Wazuh group variable is set
+      assert:
+        that:
+          - wazuh_manager_ip is defined
+          - wazuh_agent_group is defined
+        fail_msg: "Missing wazuh_manager_ip or wazuh_agent_group"
+
+  roles:
+    - wazuh_linux
+
+  post_tasks:
+    - name: Debug summary (Linux)
+      debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "Manager: {{ wazuh_manager_ip }}"
+          - "Group: {{ wazuh_agent_group }}"
+          - "Service: {{ wazuh_service | default('N/A') }}"
+
+---
+
+- name: Deploy Wazuh agents to Windows hosts
+  hosts: windows
+  gather_facts: true
+
+  pre_tasks:
+    - name: Ensure Wazuh group variable is set
+      assert:
+        that:
+          - wazuh_manager_ip is defined
+          - wazuh_agent_group is defined
+        fail_msg: "Missing wazuh_manager_ip or wazuh_agent_group"
+
+  roles:
+    - wazuh_windows
+
+  post_tasks:
+    - name: Debug summary (Windows)
+      debug:
+        msg:
+          - "Host: {{ inventory_hostname }}"
+          - "Manager: {{ wazuh_manager_ip }}"
+          - "Group: {{ wazuh_agent_group }}"
+          - "Service: {{ wazuh_service | default('N/A') }}"

@@ -1,0 +1,5 @@
+---
+- name: restart wazuh agent
+  service:
+    name: "{{ wazuh_agent_service_name }}"
+    state: restarted
