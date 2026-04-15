@@ -3,8 +3,7 @@
   assert:
     that:
       - wazuh_manager_ip is defined
-      - wazuh_agent_group is defined
-    fail_msg: "Missing wazuh_manager_ip or wazuh_agent_group"
+    fail_msg: "Missing wazuh_manager_ip"
 
 - name: Install prerequisite packages
   apt:
@@ -45,65 +44,26 @@
     state: present
     update_cache: true
 
-- name: Ensure Wazuh config directory exists
-  file:
-    path: /var/ossec/etc
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-
-- name: Set agent name in ossec-init.conf
-  lineinfile:
-    path: /var/ossec/etc/ossec-init.conf
-    regexp: '^NAME='
-    line: 'NAME="{{ wazuh_agent_name | default(inventory_hostname) }}"'
-    create: true
-    owner: root
-    group: root
-    mode: "0644"
-  notify: restart wazuh agent
-
-- name: Set manager IP in ossec-init.conf
-  lineinfile:
-    path: /var/ossec/etc/ossec-init.conf
-    regexp: '^SERVER_IP='
-    line: 'SERVER_IP="{{ wazuh_manager_ip }}"'
-    create: true
-    owner: root
-    group: root
-    mode: "0644"
-  notify: restart wazuh agent
-
-- name: Deploy ossec.conf from template
+- name: Deploy ossec.conf
   template:
     src: ossec.conf.j2
-    dest: "{{ wazuh_agent_config_path }}"
+    dest: /var/ossec/etc/ossec.conf
     owner: root
     group: root
     mode: "0644"
+    backup: true
   notify: restart wazuh agent
 
-- name: Enable and start Wazuh agent service
+- name: Enable Wazuh agent service
   service:
-    name: "{{ wazuh_agent_service_name }}"
+    name: wazuh-agent
     enabled: true
-    state: started
 
-- name: Wait for Wazuh agent service to settle
-  pause:
-    seconds: 5
+- name: Restart Wazuh agent now
+  meta: flush_handlers
 
-- name: Check Wazuh agent service status
-  command: systemctl is-active {{ wazuh_agent_service_name }}
+- name: Check Wazuh agent status
+  command: systemctl is-active wazuh-agent
   register: wazuh_linux_service_status
   changed_when: false
-  failed_when: false
-
-- name: Show Linux Wazuh status
-  debug:
-    msg:
-      - "Host: {{ inventory_hostname }}"
-      - "Manager: {{ wazuh_manager_ip }}"
-      - "Group: {{ wazuh_agent_group }}"
-      - "Service status: {{ wazuh_linux_service_status.stdout | default('unknown') }}"
+  failed_when: wazuh_linux_service_status.stdout.strip() != "active"
