@@ -1,0 +1,24 @@
+---
+- name: Place install-wazuh.txt on all Blue Team Linux hosts
+  hosts: blue1_linux:blue2_linux
+  gather_facts: false
+  become: false
+
+  tasks:
+    - name: Set Wazuh values for Blue Team 1
+      set_fact:
+        wazuh_manager_ip: "10.100.2.32"
+        wazuh_agent_group: "BlueTeam1"
+      when: "'blue1_linux' in group_names"
+
+    - name: Set Wazuh values for Blue Team 2
+      set_fact:
+        wazuh_manager_ip: "10.100.3.34"
+        wazuh_agent_group: "BlueTeam2"
+      when: "'blue2_linux' in group_names"
+
+    - name: Place install-wazuh.txt on target host
+      template:
+        src: install-wazuh.txt.j2
+        dest: ~/install-wazuh.txt
+        mode: "0644"
